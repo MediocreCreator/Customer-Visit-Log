@@ -4,117 +4,49 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Customer Call Sheet</title>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
 <style>
-* { box-sizing: border-box; }
+body { font-family: Arial, sans-serif; background:#1e1e2f; color:#fff; margin:0; }
+.container { max-width:420px; margin:auto; padding:12px; }
+h2 { text-align:center; margin-bottom:10px; font-size:20px; }
 
-body {
-  font-family: Arial, sans-serif;
-  background:#1e1e2f;
-  color:#fff;
-  margin:0;
-}
+.form-group { margin-bottom:8px; }
+label { font-size:13px; opacity:0.8; }
 
-.container {
-  width:100%;
-  max-width:420px;
-  margin:auto;
-  padding:16px 12px 20px;
-}
+input, textarea { width:100%; padding:8px; border-radius:6px; border:none; font-size:14px; margin-top:3px; }
+textarea { min-height:60px; }
 
-h2 { text-align:center; margin-bottom:12px; }
-
-.form-group { margin-bottom:10px; }
-
-input, textarea {
-  width:100%;
-  padding:10px;
-  border-radius:8px;
-  border:none;
-  margin-top:4px;
-}
-
-button {
-  width:100%;
-  padding:12px;
-  border:none;
-  border-radius:10px;
-  margin-top:8px;
-  background:#4CAF50;
-  color:#fff;
-}
-
-.button-row { display:flex; gap:8px; }
+button { width:100%; padding:10px; border:none; border-radius:8px; font-size:14px; margin-top:6px; background:#4CAF50; color:#fff; cursor:pointer; }
+.button-row { display:flex; gap:6px; }
 .button-row button { flex:1; }
 
-.tasks {
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:6px;
-}
+.tasks { display:grid; grid-template-columns:1fr 1fr; gap:5px; font-size:13px; }
 
-canvas {
-  background:#fff;
-  border-radius:10px;
-  width:100%;
-  height:150px;
-  touch-action:none;
-}
+canvas { background:#fff; border-radius:8px; width:100%; height:130px; touch-action:none; display:block; margin-top:6px; }
 
-.log {
-  background:#111;
-  padding:10px;
-  margin-top:10px;
-  border-radius:10px;
-}
-
-img { max-width:100%; border-radius:8px; margin-top:6px; }
+.log { background:#111; padding:10px; margin-top:10px; border-radius:8px; font-size:12px; }
+img { max-width:100%; margin-top:5px; border-radius:6px; }
 .logo { max-height:40px; }
-.delete-btn { background:#c0392b; }
-
-/* PDF MODAL */
-.pdf-modal {
-  position: fixed;
-  top:0; left:0;
-  width:100%; height:100%;
-  background:#000;
-  display:none;
-  flex-direction:column;
-  z-index:9999;
-}
-
-.pdf-header {
-  display:flex;
-  justify-content:space-between;
-  padding:10px;
-  background:#111;
-}
-
-.pdf-header button {
-  width:auto;
-  padding:8px 12px;
-}
-
-#pdfFrame {
-  flex:1;
-  width:100%;
-  border:none;
-  background:#fff;
-  -webkit-overflow-scrolling: touch;
-}
+.delete-btn { background:#c0392b; color:#fff; margin-top:5px; }
 </style>
 </head>
-
 <body>
 
 <div class="container">
 <h2>Customer Call Sheet</h2>
 
-<input id="customer" placeholder="Customer" />
-<input type="file" id="logo" accept="image/*" />
+<div class="form-group">
+<label>Customer</label>
+<input id="customer" />
+</div>
 
+<div class="form-group">
+<label>Customer Logo</label>
+<input type="file" id="logo" accept="image/*" />
+</div>
+
+<div class="form-group">
+<label>Tasks Performed</label>
 <div class="tasks">
 <label><input type="checkbox" value="Panel Repair"> Panel Repair</label>
 <label><input type="checkbox" value="Primer"> Primer</label>
@@ -124,20 +56,35 @@ img { max-width:100%; border-radius:8px; margin-top:6px; }
 <label><input type="checkbox" value="Assistance"> Assistance</label>
 <label><input type="checkbox" value="Color Matching"> Color Match</label>
 <label><input type="checkbox" value="Polishing"> Polishing</label>
+<label><input type="checkbox" value="Paint Room"> Paint Room</label>
+<label><input type="checkbox" value="Booth Maintenance"> Booth</label>
+<label><input type="checkbox" value="PC Updates"> PC</label>
+<label><input type="checkbox" value="Software Updates"> Software</label>
+</div>
 </div>
 
-<textarea id="notes" placeholder="Notes"></textarea>
+<div class="form-group">
+<label>Notes</label>
+<textarea id="notes"></textarea>
+</div>
 
 <div class="button-row">
 <button onclick="startVisit()">Start</button>
 <button onclick="endVisit()">End</button>
 </div>
 
+<div class="form-group">
+<label>Photo</label>
 <input type="file" id="photo" accept="image/*" />
+</div>
+
 <button onclick="captureLocation()">Location</button>
 
+<div class="form-group">
+<label>Signature</label>
 <canvas id="signature"></canvas>
 <button onclick="clearSignature()">Clear</button>
+</div>
 
 <button onclick="saveLog()">Save</button>
 <button onclick="previewPDF()">Preview PDF</button>
@@ -145,246 +92,240 @@ img { max-width:100%; border-radius:8px; margin-top:6px; }
 <div id="logs"></div>
 </div>
 
-<!-- PDF MODAL -->
-<div id="pdfModal" class="pdf-modal">
-  <div class="pdf-header">
-    <button onclick="closePDF()">Close</button>
-    <button onclick="downloadPDF()">Download</button>
-  </div>
-  <iframe id="pdfFrame"></iframe>
-</div>
-
 <script>
 let logs = JSON.parse(localStorage.getItem('logs')) || [];
 let startTime=null, endTime=null, visitLocation='';
 let logo='', photo='';
-let currentPDFBlob=null;
 
+const customer = document.getElementById('customer');
+const notes = document.getElementById('notes');
 const canvas = document.getElementById('signature');
 const ctx = canvas.getContext('2d');
 
-/* FIX SIGNATURE DISAPPEARING */
+// High DPI canvas + preserve signature
 function resizeCanvas(){
-  const data = canvas.toDataURL();
-
+  const data = canvas.toDataURL(); // save current drawing
   const ratio = window.devicePixelRatio || 1;
-  const rect = canvas.getBoundingClientRect();
-
-  canvas.width = rect.width * ratio;
-  canvas.height = rect.height * ratio;
-
-  ctx.setTransform(1,0,0,1,0,0);
+  canvas.width = canvas.offsetWidth * ratio;
+  canvas.height = canvas.offsetHeight * ratio;
   ctx.scale(ratio, ratio);
+  ctx.fillStyle='#fff';
+  ctx.fillRect(0,0,canvas.offsetWidth,canvas.offsetHeight);
 
-  ctx.fillStyle="#fff";
-  ctx.fillRect(0,0,rect.width,rect.height);
-
+  // redraw previous signature
   const img = new Image();
   img.src = data;
-  img.onload = () => ctx.drawImage(img,0,0,rect.width,rect.height);
+  img.onload = () => ctx.drawImage(img, 0, 0, canvas.offsetWidth, canvas.offsetHeight);
 }
-
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
+window.addEventListener('orientationchange', resizeCanvas);
 
-/* DRAW */
-let drawing=false;
-
-canvas.addEventListener('pointerdown', e=>{
-  drawing=true;
-  ctx.beginPath();
-  draw(e);
-});
-
-canvas.addEventListener('pointermove', draw);
-canvas.addEventListener('pointerup', ()=>drawing=false);
-canvas.addEventListener('pointerleave', ()=>drawing=false);
-
+// Signature drawing
+let drawing = false;
+function startDraw(e){ 
+  drawing = true; 
+  ctx.beginPath(); 
+  draw(e); 
+}
+function endDraw(){ 
+  drawing = false; 
+  ctx.beginPath(); 
+}
 function draw(e){
   if(!drawing) return;
+  e.preventDefault(); // prevent scroll
   const r = canvas.getBoundingClientRect();
-  const x = e.clientX - r.left;
-  const y = e.clientY - r.top;
-
-  ctx.lineWidth=2;
-  ctx.lineCap='round';
-  ctx.strokeStyle='#000';
-
-  ctx.lineTo(x,y);
+  let x, y;
+  if(e.touches){
+    x = e.touches[0].clientX - r.left;
+    y = e.touches[0].clientY - r.top;
+  } else {
+    x = e.clientX - r.left;
+    y = e.clientY - r.top;
+  }
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#000';
+  ctx.lineTo(x, y);
   ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(x,y);
+  ctx.moveTo(x, y);
 }
 
+// Pointer events
+canvas.addEventListener('pointerdown', startDraw);
+canvas.addEventListener('pointermove', draw);
+canvas.addEventListener('pointerup', endDraw);
+canvas.addEventListener('pointerleave', endDraw);
+
+// Touch events for mobile
+canvas.addEventListener('touchstart', startDraw, { passive: false });
+canvas.addEventListener('touchmove', draw, { passive: false });
+canvas.addEventListener('touchend', endDraw, { passive: false });
+canvas.addEventListener('touchcancel', endDraw, { passive: false });
+
+// Clear signature
 function clearSignature(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  resizeCanvas();
+  ctx.fillStyle='#fff';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
 }
 
-/* HELPERS */
-function checkPageSpace(doc, y, needed=20){
-  const h = doc.internal.pageSize.getHeight();
-  if(y + needed > h - 10){
-    doc.addPage();
-    return 15;
-  }
-  return y;
-}
-
-/* LOGIC */
+// Visit timing
 function startVisit(){ startTime=new Date(); }
 function endVisit(){ endTime=new Date(); }
-
 function getDuration(){
   if(!startTime||!endTime) return '';
   const diff=(endTime-startTime)/1000;
-  return `${Math.floor(diff/3600)}h ${Math.floor((diff%3600)/60)}m`;
+  const h=Math.floor(diff/3600);
+  const m=Math.floor((diff%3600)/60);
+  return `${h}h ${m}m`;
 }
 
+// Location
 function captureLocation(){
-  navigator.geolocation?.getCurrentPosition(p=>{
+  if(!navigator.geolocation) return alert('Geolocation not supported');
+  navigator.geolocation.getCurrentPosition(p=>{
     visitLocation=`${p.coords.latitude},${p.coords.longitude}`;
   });
 }
 
-function getTasks(){
-  return [...document.querySelectorAll('.tasks input:checked')].map(i=>i.value);
-}
+// Tasks
+function getTasks(){ return [...document.querySelectorAll('.tasks input:checked')].map(i=>i.value); }
 
+// Image uploads
 function handleImageUpload(input, setter){
-  input.onchange = e=>{
+  input.addEventListener('change', e=>{
     const file=e.target.files[0];
     if(!file) return;
     const reader=new FileReader();
     reader.onload=()=> setter(reader.result);
     reader.readAsDataURL(file);
-  };
+  });
 }
+handleImageUpload(document.getElementById('logo'), val=> logo=val);
+handleImageUpload(document.getElementById('photo'), val=> photo=val);
 
-handleImageUpload(document.getElementById('logo'), v=>logo=v);
-handleImageUpload(document.getElementById('photo'), v=>photo=v);
-
+// Logs
 function saveLog(){
-  logs.push({
+  const log={
     customer: customer.value,
     tasks: getTasks(),
     notes: notes.value,
+    start: startTime,
+    end: endTime,
     duration: getDuration(),
     location: visitLocation,
-    logo, photo,
+    logo,
+    photo,
     signature: canvas.toDataURL()
-  });
-
+  };
+  logs.push(log);
   localStorage.setItem('logs', JSON.stringify(logs));
   displayLogs();
 }
 
 function displayLogs(){
   const div=document.getElementById('logs');
-  div.innerHTML = logs.map((l,i)=>`
-    <div class="log">
-      ${l.logo ? `<img class="logo" src="${l.logo}">` : ''}
-      <b>${l.customer}</b><br>
-      🔧 ${l.tasks.join(', ')}<br>
-      📝 ${l.notes}<br>
-      ⏱️ ${l.duration}<br>
-      ${l.location ? `📍 ${l.location}<br>` : ''}
-      ${l.photo ? `<img src="${l.photo}">` : ''}
-      <img src="${l.signature}">
-      <button class="delete-btn" onclick="deleteLog(${i})">Delete</button>
-    </div>
-  `).join('');
+  div.innerHTML='';
+  logs.forEach((l,i)=>{
+    div.innerHTML+=`
+      <div class="log">
+        ${l.logo ? `<img class="logo" src="${l.logo}"/>` : ''}
+        <b>${l.customer}</b><br>
+        🔧 ${l.tasks.join(', ')}<br>
+        📝 ${l.notes}<br>
+        ⏱️ ${l.duration}<br>
+        ${l.location ? `📍 ${l.location}<br>` : ''}
+        ${l.photo ? `<img src="${l.photo}" />` : ''}
+        <img src="${l.signature}" />
+        <button class="delete-btn" onclick="deleteLog(${i})">Delete</button>
+      </div>`;
+  });
 }
 
-function deleteLog(i){
-  logs.splice(i,1);
-  localStorage.setItem('logs', JSON.stringify(logs));
-  displayLogs();
-}
+function deleteLog(i){ logs.splice(i,1); localStorage.setItem('logs', JSON.stringify(logs)); displayLogs(); }
 
-/* PDF */
-async function previewPDF(){
+async function previewPDF() {
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit:'mm', format:'a4' });
+  const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+  let y = 15;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 10;
+  const lineHeight = 7;
 
-  let y=15;
-  const margin=10;
-  const pageWidth=doc.internal.pageSize.getWidth();
-
-  async function addImageSafe(src,x,yPos,w,h){
-    if(!src) return;
-    return new Promise(resolve=>{
-      const img=new Image();
-      img.onload=()=>{ doc.addImage(img,'PNG',x,yPos,w,h); resolve(); };
-      img.onerror=resolve;
-      img.src=src;
-    });
-  }
-
-  for(const l of logs){
-
-    doc.setFontSize(14);
-    doc.text(`Customer: ${l.customer}`,margin,y);
-    y+=8;
-
-    doc.text(`Time: ${l.duration}`,margin,y);
-    y+=8;
-
-    y = checkPageSpace(doc,y);
-
-    doc.text(`Tasks: ${l.tasks.join(', ')}`,margin,y);
-    y+=10;
-
-    doc.text(`Notes: ${l.notes}`,margin,y);
-    y+=10;
-
-    if(l.photo){
-      const img=new Image();
-      img.src=l.photo;
-      await new Promise(r=>img.onload=r);
-
-      const maxW=pageWidth-margin*2;
-      const ratio=img.height/img.width;
-      const h=maxW*ratio;
-
-      y = checkPageSpace(doc,y,h);
-
-      await addImageSafe(l.photo,margin,y,maxW,h);
-      y+=h+5;
+  for (const l of logs) {
+    async function addImageSafe(src, x, yPos, w, h) {
+      if (!src) return;
+      return new Promise(resolve => {
+        const img = new Image();
+        img.onload = () => { doc.addImage(img, 'PNG', x, yPos, w, h); resolve(); };
+        img.onerror = () => resolve();
+        img.src = src;
+      });
     }
 
-    if(l.signature){
-      y = checkPageSpace(doc,y,40);
+    // Draw background rectangle for section
+    doc.setFillColor(245, 245, 245);
+    doc.rect(margin - 2, y - 2, pageWidth - margin * 2 + 4, 50, 'F');
 
-      doc.text("Signature:",margin,y);
-      y+=5;
+    // Logo
+    await addImageSafe(l.logo, margin, y, 30, 20);
 
-      await addImageSafe(l.signature,margin,y,pageWidth/2,30);
-      y+=35;
+    // Customer Name
+    doc.setFontSize(16);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Customer: ${l.customer}`, margin + 35, y + 10);
+
+    // Time Spent
+    doc.setFontSize(12);
+    doc.text(`Time Spent: ${l.duration}`, margin + 35, y + 18);
+
+    y += 25;
+
+    // Tasks
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Tasks Performed:`, margin, y);
+    const tasksText = l.tasks.join(', ') || 'None';
+    doc.setFontSize(11);
+    doc.text(doc.splitTextToSize(tasksText, pageWidth - margin * 2), margin, y + lineHeight);
+    y += lineHeight + 5;
+
+    // Notes
+    doc.setFontSize(12);
+    doc.text('Notes:', margin, y);
+    doc.setFontSize(11);
+    const notesLines = doc.splitTextToSize(l.notes || 'None', pageWidth - margin * 2);
+    doc.text(notesLines, margin, y + lineHeight);
+    y += notesLines.length * lineHeight + 5;
+
+    // Photo
+    if (l.photo) {
+      const photoWidth = pageWidth - margin * 2;
+      const photoHeight = (photoWidth * 3) / 4; // Maintain 4:3 ratio
+      await addImageSafe(l.photo, margin, y, photoWidth, photoHeight);
+      y += photoHeight + 5;
     }
 
-    y = checkPageSpace(doc,y);
+    // Signature
+    if (l.signature) {
+      const sigWidth = pageWidth / 2;
+      const sigHeight = 30;
+      await addImageSafe(l.signature, margin, y, sigWidth, sigHeight);
+      y += sigHeight + 10;
+    }
+
+    // Check for page overflow
+    if (y > doc.internal.pageSize.getHeight() - 30) {
+      doc.addPage();
+      y = 15;
+    }
   }
 
-  const blob=doc.output('blob');
-  currentPDFBlob=blob;
-
-  const url=URL.createObjectURL(blob);
-  document.getElementById('pdfFrame').src=url;
-  document.getElementById('pdfModal').style.display='flex';
-}
-
-function closePDF(){
-  document.getElementById('pdfModal').style.display='none';
-}
-
-function downloadPDF(){
-  if(!currentPDFBlob) return;
-  const url=URL.createObjectURL(currentPDFBlob);
-  const a=document.createElement('a');
-  a.href=url;
-  a.download="Customer_Call_Sheet.pdf";
-  a.click();
+  // Open PDF in new tab
+  window.open(doc.output('bloburl'), '_blank');
 }
 
 displayLogs();
