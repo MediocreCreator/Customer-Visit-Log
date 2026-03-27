@@ -3,43 +3,112 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Advanced Visit Logger</title>
+<title>Customer Call Sheet</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
-body { font-family: Arial; background:#1e1e2f; color:#fff; margin:0; }
-.container { padding:15px; }
-input, textarea, select, button { width:100%; margin:8px 0; padding:12px; border-radius:8px; border:none; font-size:16px; }
-button { background:#4CAF50; color:#fff; }
-canvas { background:#fff; border-radius:8px; margin-top:10px; touch-action:none; }
-.log { background:#111; padding:12px; margin-top:12px; border-radius:8px; }
-img { max-width:100px; display:block; margin-top:5px; }
+body { font-family: Arial, sans-serif; background:#1e1e2f; color:#fff; margin:0; }
+.container { max-width:500px; margin:auto; padding:15px; }
+h2 { text-align:center; margin-bottom:10px; }
+
+.form-group { margin-bottom:10px; }
+label { font-size:14px; opacity:0.8; }
+
+input, textarea, select {
+  width:100%;
+  padding:10px;
+  border-radius:6px;
+  border:none;
+  font-size:14px;
+  margin-top:4px;
+}
+
+textarea { resize:vertical; min-height:70px; }
+
+button {
+  width:100%;
+  padding:12px;
+  border:none;
+  border-radius:8px;
+  font-size:15px;
+  margin-top:8px;
+  background:#4CAF50;
+  color:#fff;
+}
+
+.button-row {
+  display:flex;
+  gap:8px;
+}
+.button-row button { flex:1; }
+
+canvas { background:#fff; border-radius:8px; margin-top:8px; width:100%; height:150px; }
+
+.log { background:#111; padding:12px; margin-top:12px; border-radius:8px; font-size:13px; }
+img { max-width:100%; margin-top:5px; border-radius:6px; }
+.delete-btn { background:#c0392b; margin-top:6px; }
+.clear-all { background:#e67e22; }
 </style>
 </head>
 <body>
 
 <div class="container">
-<h2>Visit Logger (Mobile)</h2>
+<h2>Customer Call Sheet</h2>
 
-<input id="customer" placeholder="Customer / Shop Name" />
-<input id="vehicle" placeholder="Vehicle" />
+<div class="form-group">
+<label>Customer / Shop</label>
+<input id="customer" placeholder="Enter shop name" />
+</div>
+
+<div class="form-group">
+<label>Vehicle</label>
+<input id="vehicle" placeholder="Make / Model" />
+</div>
+
+<div class="form-group">
+<label>Task Performed</label>
 <select id="task">
 <option>Panel Repair</option>
+<option>Primer Application</option>
+<option>Body Filler Work</option>
+<option>Sanding / Prep</option>
 <option>Spray Painting</option>
+<option>Spray Painter Assistance</option>
 <option>Color Matching</option>
+<option>Polishing / Buffing</option>
+<option>Paint Room Maintenance</option>
+<option>Spray Booth Maintenance</option>
+<option>Equipment Inspection</option>
+<option>PC Updates</option>
+<option>Hardware Updates</option>
+<option>Software Updates</option>
 </select>
-<textarea id="notes" placeholder="Work done..."></textarea>
+</div>
 
-<button onclick="startVisit()">Start Visit</button>
-<button onclick="endVisit()">End Visit</button>
+<div class="form-group">
+<label>Notes</label>
+<textarea id="notes" placeholder="Describe work done..."></textarea>
+</div>
 
+<div class="button-row">
+<button onclick="startVisit()">Start</button>
+<button onclick="endVisit()">End</button>
+</div>
+
+<div class="form-group">
+<label>Photo</label>
 <input type="file" id="photo" accept="image/*" />
+</div>
+
 <button onclick="captureLocation()">Capture Location</button>
 
-<h3>Signature</h3>
-<canvas id="signature" width="300" height="150"></canvas>
+<div class="form-group">
+<label>Signature</label>
+<canvas id="signature"></canvas>
 <button onclick="clearSignature()">Clear Signature</button>
+</div>
 
 <button onclick="saveLog()">Save Log</button>
+<button class="clear-all" onclick="clearAllLogs()">Delete All Logs</button>
 <button onclick="exportPDF()">Export PDF</button>
 
 <div id="logs"></div>
@@ -53,19 +122,10 @@ function startVisit(){ startTime = new Date().toLocaleTimeString(); }
 function endVisit(){ endTime = new Date().toLocaleTimeString(); }
 
 function captureLocation(){
- if(!navigator.geolocation){
-  alert('Geolocation not supported');
-  return;
- }
+ if(!navigator.geolocation){ alert('Geolocation not supported'); return; }
  navigator.geolocation.getCurrentPosition(
-  pos=>{
-    visitLocation = pos.coords.latitude+','+pos.coords.longitude;
-    alert('Location captured');
-  },
-  err=>{
-    alert('Location failed: ' + err.message + '\n(Requires HTTPS on mobile)');
-  },
-  { enableHighAccuracy:true, timeout:10000 }
+  pos=>{ visitLocation = pos.coords.latitude+','+pos.coords.longitude; alert('Location captured'); },
+  err=>{ alert('Location failed: ' + err.message + ' (Use HTTPS)'); }
  );
 }
 
@@ -84,16 +144,13 @@ const canvas = document.getElementById('signature');
 const ctx = canvas.getContext('2d');
 let drawing = false;
 
-canvas.addEventListener('touchstart', e=>{
- drawing = true;
- ctx.beginPath();
- draw(e);
-});
+// Fill white background so it's not transparent
+ctx.fillStyle = "#ffffff";
+ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+canvas.addEventListener('touchstart', e=>{ drawing = true; ctx.beginPath(); draw(e); });
 canvas.addEventListener('touchmove', draw);
-canvas.addEventListener('touchend', ()=>{
- drawing = false;
- ctx.beginPath();
-});
+canvas.addEventListener('touchend', ()=>{ drawing=false; ctx.beginPath(); });
 
 function draw(e){
  if(!drawing) return;
@@ -104,45 +161,66 @@ function draw(e){
  const y = touch.clientY - rect.top;
  ctx.lineWidth = 2;
  ctx.lineCap = 'round';
+ ctx.strokeStyle = '#000';
  ctx.lineTo(x,y);
  ctx.stroke();
  ctx.beginPath();
  ctx.moveTo(x,y);
 }
 
-function clearSignature(){ ctx.clearRect(0,0,canvas.width,canvas.height); }
+function clearSignature(){
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+ ctx.fillStyle = "#ffffff";
+ ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
 
 function isCanvasEmpty(){
  const blank = document.createElement('canvas');
  blank.width = canvas.width;
  blank.height = canvas.height;
+ const blankCtx = blank.getContext('2d');
+ blankCtx.fillStyle = "#ffffff";
+ blankCtx.fillRect(0,0,blank.width,blank.height);
  return canvas.toDataURL() === blank.toDataURL();
 }
 
 function saveLog(){
- const signature = isCanvasEmpty() ? '' : canvas.toDataURL();
+ const signature = isCanvasEmpty() ? '' : canvas.toDataURL('image/png');
 
  const log = {
-  customer: document.getElementById('customer').value,
-  vehicle: document.getElementById('vehicle').value,
-  task: document.getElementById('task').value,
-  notes: document.getElementById('notes').value,
+  customer: customer.value,
+  vehicle: vehicle.value,
+  task: task.value,
+  notes: notes.value,
   start: startTime,
   end: endTime,
   location: visitLocation,
   photo,
   signature
  };
-
  logs.push(log);
  localStorage.setItem('logs', JSON.stringify(logs));
  displayLogs();
 }
 
+function deleteLog(index){
+ logs.splice(index,1);
+ localStorage.setItem('logs', JSON.stringify(logs));
+ displayLogs();
+}
+
+function clearAllLogs(){
+ if(confirm('Delete all logs?')){
+  logs = [];
+  localStorage.removeItem('logs');
+  displayLogs();
+ }
+}
+
 function displayLogs(){
  const logsDiv = document.getElementById('logs');
  logsDiv.innerHTML='';
- logs.forEach(l=>{
+ logs.forEach((l, index)=>{
   logsDiv.innerHTML += `
    <div class="log">
     <b>${l.customer}</b><br>
@@ -153,6 +231,7 @@ function displayLogs(){
     ${l.location ? `📍 ${l.location}<br>` : ''}
     ${l.photo ? `<img src="${l.photo}" />` : ''}
     ${l.signature ? `<div>✍️ Signature:</div><img src="${l.signature}" />` : ''}
+    <button class="delete-btn" onclick="deleteLog(${index})">Delete</button>
    </div>`;
  });
 }
@@ -161,31 +240,24 @@ function exportPDF(){
  const { jsPDF } = window.jspdf;
  const doc = new jsPDF();
  let y=10;
- logs.forEach((l,i)=>{
+ logs.forEach(l=>{
   doc.text(`Customer: ${l.customer}`,10,y); y+=6;
   doc.text(`Vehicle: ${l.vehicle}`,10,y); y+=6;
   doc.text(`Task: ${l.task}`,10,y); y+=6;
   doc.text(`Notes: ${l.notes}`,10,y); y+=6;
   doc.text(`Time: ${l.start}-${l.end}`,10,y); y+=6;
   doc.text(`Location: ${l.location}`,10,y); y+=6;
-  if(l.signature){
-    doc.addImage(l.signature,'PNG',10,y,50,20);
-    y+=25;
-  }
+  if(l.signature){ doc.addImage(l.signature,'PNG',10,y,50,20); y+=25; }
   y+=5;
   if(y > 270){ doc.addPage(); y = 10; }
  });
  doc.save('logs.pdf');
 }
 
-// Tests
 (function test(){
  console.assert(Array.isArray(logs), 'Logs should be array');
- console.assert(typeof captureLocation === 'function', 'captureLocation missing');
- console.assert(typeof saveLog === 'function', 'saveLog missing');
+ console.assert(typeof deleteLog === 'function', 'deleteLog missing');
 })();
-
-// Init
 
 displayLogs();
 </script>
