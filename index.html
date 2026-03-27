@@ -256,11 +256,13 @@ async function previewPDF() {
         let height = img.height;
         const ratio = width / height;
 
+        // Scale to fit maxWidth
         if (width > maxWidth) { width = maxWidth; height = width / ratio; }
+        // Scale to fit maxHeight
         if (maxHeight && height > maxHeight) { height = maxHeight; width = height * ratio; }
 
         doc.addImage(img, 'PNG', x, yPos, width, height);
-        resolve(height + 5);
+        resolve(height + 5); // return height including spacing
       };
       img.onerror = () => resolve(0);
       img.src = src;
@@ -295,9 +297,23 @@ async function previewPDF() {
     doc.text(notesLines, margin, y + lineHeight);
     y += notesLines.length * lineHeight + 5;
 
-    if (l.photo) { const photoHeight = await addImageSafe(l.photo, margin, y, pageWidth - margin * 2); y += photoHeight; }
-    if (l.signature) { const sigHeight = await addImageSafe(l.signature, margin, y, pageWidth / 2); y += sigHeight + 5; }
+    // Determine remaining space for photo + signature
+    let remainingSpace = pageHeight - y - 30; // leave 30mm bottom margin
+    let sigHeight = l.signature ? 30 : 0;
+    let maxPhotoHeight = remainingSpace - sigHeight;
 
+    if (l.photo) {
+      const photoHeight = await addImageSafe(l.photo, margin, y, pageWidth - margin * 2, maxPhotoHeight);
+      y += photoHeight;
+    }
+
+    // Add signature
+    if (l.signature) {
+      await addImageSafe(l.signature, margin, y, pageWidth / 2, 30);
+      y += 30 + 5;
+    }
+
+    // If something still overflows, add a page
     if (y > pageHeight - 30) { doc.addPage(); y = 15; }
   }
 
