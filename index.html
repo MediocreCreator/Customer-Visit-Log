@@ -13,25 +13,21 @@ h2 { text-align:center; margin-bottom:10px; font-size:20px; }
 .form-group { margin-bottom:8px; }
 label { font-size:13px; opacity:0.8; }
 
-input, textarea {
-  width:100%; padding:8px; border-radius:6px; border:none; font-size:14px; margin-top:3px;
-}
-
+input, textarea { width:100%; padding:8px; border-radius:6px; border:none; font-size:14px; margin-top:3px; }
 textarea { min-height:60px; }
 
-button { width:100%; padding:10px; border:none; border-radius:8px; font-size:14px; margin-top:6px; background:#4CAF50; color:#fff; }
-
+button { width:100%; padding:10px; border:none; border-radius:8px; font-size:14px; margin-top:6px; background:#4CAF50; color:#fff; cursor:pointer; }
 .button-row { display:flex; gap:6px; }
 .button-row button { flex:1; }
 
 .tasks { display:grid; grid-template-columns:1fr 1fr; gap:5px; font-size:13px; }
 
-canvas { background:#fff; border-radius:8px; width:100%; height:130px; margin-top:6px; }
+canvas { background:#fff; border-radius:8px; width:100%; height:130px; touch-action: none; margin-top:6px; }
 
 .log { background:#111; padding:10px; margin-top:10px; border-radius:8px; font-size:12px; }
 img { max-width:100%; margin-top:5px; border-radius:6px; }
 .logo { max-height:40px; }
-.delete-btn { background:#c0392b; }
+.delete-btn { background:#c0392b; color:#fff; margin-top:5px; }
 </style>
 </head>
 <body>
@@ -77,7 +73,6 @@ img { max-width:100%; margin-top:5px; border-radius:6px; }
 <button onclick="endVisit()">End</button>
 </div>
 
-<!-- Photo upload restored here -->
 <div class="form-group">
 <label>Photo</label>
 <input type="file" id="photo" accept="image/*" />
@@ -99,11 +94,53 @@ img { max-width:100%; margin-top:5px; border-radius:6px; }
 
 <script>
 let logs = JSON.parse(localStorage.getItem('logs')) || [];
-let startTime = null, endTime = null, visitLocation = '', logo = '', photo = '';
+let startTime = null, endTime = null, visitLocation = '';
+let logo = '', photo = '';
 
+const customer = document.getElementById('customer');
+const notes = document.getElementById('notes');
+const canvas = document.getElementById('signature');
+const ctx = canvas.getContext('2d');
+
+// Adjust canvas for high DPI (mobile)
+function resizeCanvas() {
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = canvas.offsetWidth * ratio;
+  canvas.height = canvas.offsetHeight * ratio;
+  ctx.scale(ratio, ratio);
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0,0,canvas.offsetWidth,canvas.offsetHeight);
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// Signature drawing
+let drawing=false;
+canvas.addEventListener('pointerdown', e=>{ drawing=true; ctx.beginPath(); draw(e); });
+canvas.addEventListener('pointermove', draw);
+canvas.addEventListener('pointerup', ()=> drawing=false);
+canvas.addEventListener('pointerleave', ()=> drawing=false);
+
+function draw(e){
+ if(!drawing) return;
+ e.preventDefault();
+ const r = canvas.getBoundingClientRect();
+ const x = e.clientX - r.left;
+ const y = e.clientY - r.top;
+ ctx.lineWidth=2; ctx.lineCap='round'; ctx.strokeStyle='#000';
+ ctx.lineTo(x,y); ctx.stroke();
+ ctx.beginPath(); ctx.moveTo(x,y);
+}
+
+function clearSignature(){
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+ ctx.fillStyle='#fff';
+ ctx.fillRect(0,0,canvas.width,canvas.height);
+}
+
+// Visit timing
 function startVisit(){ startTime = new Date(); }
 function endVisit(){ endTime = new Date(); }
-
 function getDuration(){
  if(!startTime || !endTime) return '';
  const diff = (endTime - startTime)/1000;
@@ -112,57 +149,31 @@ function getDuration(){
  return `${h}h ${m}m`;
 }
 
+// Location
 function captureLocation(){
+ if(!navigator.geolocation) return alert('Geolocation not supported');
  navigator.geolocation.getCurrentPosition(p=>{
-  visitLocation = p.coords.latitude+','+p.coords.longitude;
+  visitLocation = `${p.coords.latitude}, ${p.coords.longitude}`;
  });
 }
 
-// logo
+// Tasks
+function getTasks(){ return [...document.querySelectorAll('.tasks input:checked')].map(i=>i.value); }
 
-document.getElementById('logo').addEventListener('change', e=>{
- const file = e.target.files[0];
- if(!file) return;
- const reader = new FileReader();
- reader.onload = ()=> logo = reader.result;
- reader.readAsDataURL(file);
-});
-
-// photo (restored)
-document.getElementById('photo').addEventListener('change', e=>{
- const file = e.target.files[0];
- if(!file) return;
- const reader = new FileReader();
- reader.onload = ()=> photo = reader.result;
- reader.readAsDataURL(file);
-});
-
-// signature
-const canvas = document.getElementById('signature');
-const ctx = canvas.getContext('2d');
-ctx.fillStyle = '#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
-let drawing=false;
-canvas.addEventListener('touchstart', e=>{ drawing=true; ctx.beginPath(); draw(e); });
-canvas.addEventListener('touchmove', draw);
-canvas.addEventListener('touchend', ()=> drawing=false);
-
-function draw(e){
- if(!drawing) return;
- e.preventDefault();
- const r = canvas.getBoundingClientRect();
- const t = e.touches[0];
- const x = t.clientX - r.left;
- const y = t.clientY - r.top;
- ctx.lineWidth=2; ctx.lineCap='round'; ctx.strokeStyle='#000';
- ctx.lineTo(x,y); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x,y);
+// Image uploads
+function handleImageUpload(input, setter){
+ input.addEventListener('change', e=>{
+   const file = e.target.files[0];
+   if(!file) return;
+   const reader = new FileReader();
+   reader.onload = ()=> setter(reader.result);
+   reader.readAsDataURL(file);
+ });
 }
+handleImageUpload(document.getElementById('logo'), val=> logo = val);
+handleImageUpload(document.getElementById('photo'), val=> photo = val);
 
-function clearSignature(){ ctx.clearRect(0,0,canvas.width,canvas.height); ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height); }
-
-function getTasks(){
- return [...document.querySelectorAll('.tasks input:checked')].map(i=>i.value);
-}
-
+// Logs
 function saveLog(){
  const log = {
   customer: customer.value,
@@ -202,29 +213,25 @@ function displayLogs(){
 
 function deleteLog(i){ logs.splice(i,1); localStorage.setItem('logs', JSON.stringify(logs)); displayLogs(); }
 
+// PDF export
 function exportPDF(){
  const { jsPDF } = window.jspdf;
- const doc = new jsPDF();
+ const doc = new jsPDF({orientation:'p',unit:'mm',format:'a4'});
  let y=10;
  logs.forEach(l=>{
-  if(l.logo) doc.addImage(l.logo,'PNG',10,y,30,10);
-  y+=12;
+  if(l.logo) doc.addImage(l.logo,'PNG',10,y,30,15);
+  y+=18;
   doc.setFontSize(12);
   doc.text(`Customer: ${l.customer}`,10,y); y+=6;
   doc.text(`Tasks: ${l.tasks.join(', ')}`,10,y); y+=6;
   doc.text(`Notes: ${l.notes}`,10,y); y+=6;
   doc.text(`Time Spent: ${l.duration}`,10,y); y+=6;
-  if(l.signature) doc.addImage(l.signature,'PNG',10,y,50,20);
-  y+=30;
+  if(l.photo) doc.addImage(l.photo,'PNG',10,y,50,30); y+=32;
+  if(l.signature) doc.addImage(l.signature,'PNG',10,y,50,20); y+=25;
   if(y>260){ doc.addPage(); y=10; }
  });
  doc.save('CallSheet.pdf');
 }
-
-(function test(){
- console.assert(typeof getDuration==='function','duration missing');
- console.assert(typeof getTasks==='function','tasks missing');
-})();
 
 displayLogs();
 </script>
