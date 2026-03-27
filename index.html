@@ -24,54 +24,35 @@ body {
   padding:16px 12px 20px;
 }
 
-h2 {
-  text-align:center;
-  margin-bottom:12px;
-  font-size:20px;
-}
+h2 { text-align:center; margin-bottom:12px; }
 
 .form-group { margin-bottom:10px; }
-
-label {
-  font-size:13px;
-  opacity:0.85;
-}
 
 input, textarea {
   width:100%;
   padding:10px;
   border-radius:8px;
   border:none;
-  font-size:14px;
   margin-top:4px;
 }
-
-textarea { min-height:70px; }
 
 button {
   width:100%;
   padding:12px;
   border:none;
   border-radius:10px;
-  font-size:14px;
   margin-top:8px;
   background:#4CAF50;
   color:#fff;
-  cursor:pointer;
 }
 
-.button-row {
-  display:flex;
-  gap:8px;
-}
-
+.button-row { display:flex; gap:8px; }
 .button-row button { flex:1; }
 
 .tasks {
   display:grid;
   grid-template-columns:1fr 1fr;
   gap:6px;
-  font-size:13px;
 }
 
 canvas {
@@ -79,8 +60,6 @@ canvas {
   border-radius:10px;
   width:100%;
   height:150px;
-  display:block;
-  margin-top:6px;
   touch-action:none;
 }
 
@@ -89,33 +68,21 @@ canvas {
   padding:10px;
   margin-top:10px;
   border-radius:10px;
-  font-size:12px;
 }
 
-img {
-  max-width:100%;
-  margin-top:6px;
-  border-radius:8px;
-}
-
+img { max-width:100%; border-radius:8px; margin-top:6px; }
 .logo { max-height:40px; }
-
-.delete-btn {
-  background:#c0392b;
-  margin-top:6px;
-}
+.delete-btn { background:#c0392b; }
 
 /* PDF MODAL */
 .pdf-modal {
   position: fixed;
-  top:0;
-  left:0;
-  width:100%;
-  height:100%;
+  top:0; left:0;
+  width:100%; height:100%;
   background:#000;
-  z-index:9999;
   display:none;
   flex-direction:column;
+  z-index:9999;
 }
 
 .pdf-header {
@@ -128,7 +95,6 @@ img {
 .pdf-header button {
   width:auto;
   padding:8px 12px;
-  font-size:13px;
 }
 
 #pdfFrame {
@@ -136,6 +102,7 @@ img {
   width:100%;
   border:none;
   background:#fff;
+  -webkit-overflow-scrolling: touch;
 }
 </style>
 </head>
@@ -145,18 +112,9 @@ img {
 <div class="container">
 <h2>Customer Call Sheet</h2>
 
-<div class="form-group">
-<label>Customer</label>
-<input id="customer" />
-</div>
-
-<div class="form-group">
-<label>Customer Logo</label>
+<input id="customer" placeholder="Customer" />
 <input type="file" id="logo" accept="image/*" />
-</div>
 
-<div class="form-group">
-<label>Tasks Performed</label>
 <div class="tasks">
 <label><input type="checkbox" value="Panel Repair"> Panel Repair</label>
 <label><input type="checkbox" value="Primer"> Primer</label>
@@ -166,35 +124,20 @@ img {
 <label><input type="checkbox" value="Assistance"> Assistance</label>
 <label><input type="checkbox" value="Color Matching"> Color Match</label>
 <label><input type="checkbox" value="Polishing"> Polishing</label>
-<label><input type="checkbox" value="Paint Room"> Paint Room</label>
-<label><input type="checkbox" value="Booth Maintenance"> Booth</label>
-<label><input type="checkbox" value="PC Updates"> PC</label>
-<label><input type="checkbox" value="Software Updates"> Software</label>
-</div>
 </div>
 
-<div class="form-group">
-<label>Notes</label>
-<textarea id="notes"></textarea>
-</div>
+<textarea id="notes" placeholder="Notes"></textarea>
 
 <div class="button-row">
 <button onclick="startVisit()">Start</button>
 <button onclick="endVisit()">End</button>
 </div>
 
-<div class="form-group">
-<label>Photo</label>
 <input type="file" id="photo" accept="image/*" />
-</div>
-
 <button onclick="captureLocation()">Location</button>
 
-<div class="form-group">
-<label>Signature</label>
 <canvas id="signature"></canvas>
 <button onclick="clearSignature()">Clear</button>
-</div>
 
 <button onclick="saveLog()">Save</button>
 <button onclick="previewPDF()">Preview PDF</button>
@@ -220,8 +163,10 @@ let currentPDFBlob=null;
 const canvas = document.getElementById('signature');
 const ctx = canvas.getContext('2d');
 
-/* CANVAS FIX */
+/* FIX SIGNATURE DISAPPEARING */
 function resizeCanvas(){
+  const data = canvas.toDataURL();
+
   const ratio = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
 
@@ -233,7 +178,12 @@ function resizeCanvas(){
 
   ctx.fillStyle="#fff";
   ctx.fillRect(0,0,rect.width,rect.height);
+
+  const img = new Image();
+  img.src = data;
+  img.onload = () => ctx.drawImage(img,0,0,rect.width,rect.height);
 }
+
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 
@@ -269,6 +219,16 @@ function draw(e){
 function clearSignature(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   resizeCanvas();
+}
+
+/* HELPERS */
+function checkPageSpace(doc, y, needed=20){
+  const h = doc.internal.pageSize.getHeight();
+  if(y + needed > h - 10){
+    doc.addPage();
+    return 15;
+  }
+  return y;
 }
 
 /* LOGIC */
@@ -342,7 +302,7 @@ function deleteLog(i){
   displayLogs();
 }
 
-/* PDF PREVIEW */
+/* PDF */
 async function previewPDF(){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'mm', format:'a4' });
@@ -350,7 +310,6 @@ async function previewPDF(){
   let y=15;
   const margin=10;
   const pageWidth=doc.internal.pageSize.getWidth();
-  const lineHeight=7;
 
   async function addImageSafe(src,x,yPos,w,h){
     if(!src) return;
@@ -364,53 +323,47 @@ async function previewPDF(){
 
   for(const l of logs){
 
-    doc.setFillColor(245,245,245);
-    doc.rect(margin-2,y-2,pageWidth-margin*2+4,50,'F');
+    doc.setFontSize(14);
+    doc.text(`Customer: ${l.customer}`,margin,y);
+    y+=8;
 
-    await addImageSafe(l.logo,margin,y,30,20);
+    doc.text(`Time: ${l.duration}`,margin,y);
+    y+=8;
 
-    doc.setFontSize(16);
-    doc.text(`Customer: ${l.customer}`,margin+35,y+10);
+    y = checkPageSpace(doc,y);
 
-    doc.setFontSize(12);
-    doc.text(`Time: ${l.duration}`,margin+35,y+18);
+    doc.text(`Tasks: ${l.tasks.join(', ')}`,margin,y);
+    y+=10;
 
-    y+=25;
-
-    doc.setFontSize(12);
-    doc.text("Tasks:",margin,y);
-
-    const tasks=l.tasks.join(', ')||'None';
-    doc.setFontSize(11);
-    doc.text(doc.splitTextToSize(tasks,pageWidth-margin*2),margin,y+7);
-
-    y+=12;
-
-    doc.setFontSize(12);
-    doc.text("Notes:",margin,y);
-
-    const notesLines=doc.splitTextToSize(l.notes||'None',pageWidth-margin*2);
-    doc.setFontSize(11);
-    doc.text(notesLines,margin,y+7);
-
-    y+=notesLines.length*lineHeight+5;
+    doc.text(`Notes: ${l.notes}`,margin,y);
+    y+=10;
 
     if(l.photo){
-      const w=pageWidth-margin*2;
-      const h=(w*3)/4;
-      await addImageSafe(l.photo,margin,y,w,h);
+      const img=new Image();
+      img.src=l.photo;
+      await new Promise(r=>img.onload=r);
+
+      const maxW=pageWidth-margin*2;
+      const ratio=img.height/img.width;
+      const h=maxW*ratio;
+
+      y = checkPageSpace(doc,y,h);
+
+      await addImageSafe(l.photo,margin,y,maxW,h);
       y+=h+5;
     }
 
     if(l.signature){
+      y = checkPageSpace(doc,y,40);
+
+      doc.text("Signature:",margin,y);
+      y+=5;
+
       await addImageSafe(l.signature,margin,y,pageWidth/2,30);
       y+=35;
     }
 
-    if(y>270){
-      doc.addPage();
-      y=15;
-    }
+    y = checkPageSpace(doc,y);
   }
 
   const blob=doc.output('blob');
