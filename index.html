@@ -222,35 +222,84 @@ function displayLogs(){
 
 function deleteLog(i){ logs.splice(i,1); localStorage.setItem('logs', JSON.stringify(logs)); displayLogs(); }
 
-// PDF preview
-async function previewPDF(){
+async function previewPDF() {
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({orientation:'p',unit:'mm',format:'a4'});
-  let y=10;
+  const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+  let y = 15;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 10;
+  const lineHeight = 7;
 
-  for(const l of logs){
-    async function addImageSafe(src, x, yPos, w, h){
-      if(!src) return;
-      return new Promise(resolve=>{
-        const img=new Image();
-        img.onload=()=>{ doc.addImage(img,'PNG',x,yPos,w,h); resolve(); };
-        img.onerror=()=>resolve();
-        img.src=src;
+  for (const l of logs) {
+    async function addImageSafe(src, x, yPos, w, h) {
+      if (!src) return;
+      return new Promise(resolve => {
+        const img = new Image();
+        img.onload = () => { doc.addImage(img, 'PNG', x, yPos, w, h); resolve(); };
+        img.onerror = () => resolve();
+        img.src = src;
       });
     }
 
-    await addImageSafe(l.logo, 10, y, 30, 15); y+=18;
+    // Draw background rectangle for section
+    doc.setFillColor(245, 245, 245);
+    doc.rect(margin - 2, y - 2, pageWidth - margin * 2 + 4, 50, 'F');
+
+    // Logo
+    await addImageSafe(l.logo, margin, y, 30, 20);
+
+    // Customer Name
+    doc.setFontSize(16);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Customer: ${l.customer}`, margin + 35, y + 10);
+
+    // Time Spent
     doc.setFontSize(12);
-    doc.text(`Customer: ${l.customer}`,10,y); y+=6;
-    doc.text(`Tasks: ${l.tasks.join(', ')}`,10,y); y+=6;
-    doc.text(`Notes: ${l.notes}`,10,y); y+=6;
-    doc.text(`Time Spent: ${l.duration}`,10,y); y+=6;
-    await addImageSafe(l.photo, 10, y, 50, 30); y+=32;
-    await addImageSafe(l.signature, 10, y, 50, 20); y+=25;
-    if(y>260){ doc.addPage(); y=10; }
+    doc.text(`Time Spent: ${l.duration}`, margin + 35, y + 18);
+
+    y += 25;
+
+    // Tasks
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Tasks Performed:`, margin, y);
+    const tasksText = l.tasks.join(', ') || 'None';
+    doc.setFontSize(11);
+    doc.text(doc.splitTextToSize(tasksText, pageWidth - margin * 2), margin, y + lineHeight);
+    y += lineHeight + 5;
+
+    // Notes
+    doc.setFontSize(12);
+    doc.text('Notes:', margin, y);
+    doc.setFontSize(11);
+    const notesLines = doc.splitTextToSize(l.notes || 'None', pageWidth - margin * 2);
+    doc.text(notesLines, margin, y + lineHeight);
+    y += notesLines.length * lineHeight + 5;
+
+    // Photo
+    if (l.photo) {
+      const photoWidth = pageWidth - margin * 2;
+      const photoHeight = (photoWidth * 3) / 4; // Maintain 4:3 ratio
+      await addImageSafe(l.photo, margin, y, photoWidth, photoHeight);
+      y += photoHeight + 5;
+    }
+
+    // Signature
+    if (l.signature) {
+      const sigWidth = pageWidth / 2;
+      const sigHeight = 30;
+      await addImageSafe(l.signature, margin, y, sigWidth, sigHeight);
+      y += sigHeight + 10;
+    }
+
+    // Check for page overflow
+    if (y > doc.internal.pageSize.getHeight() - 30) {
+      doc.addPage();
+      y = 15;
+    }
   }
 
-  // Open PDF in new tab for preview
+  // Open PDF in new tab
   window.open(doc.output('bloburl'), '_blank');
 }
 
