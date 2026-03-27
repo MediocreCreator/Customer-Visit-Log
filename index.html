@@ -181,14 +181,6 @@ function getDuration(){
   return `${h}h ${m}m`;
 }
 
-// Location
-function captureLocation(){
-  if(!navigator.geolocation) return alert('Geolocation not supported');
-  navigator.geolocation.getCurrentPosition(p=>{
-    visitLocation=`${p.coords.latitude},${p.coords.longitude}`;
-  });
-}
-
 // Tasks
 function getTasks(){ return [...document.querySelectorAll('.tasks input:checked')].map(i=>i.value); }
 
@@ -245,84 +237,70 @@ function displayLogs(){
 
 function deleteLog(i){ logs.splice(i,1); localStorage.setItem('logs', JSON.stringify(logs)); displayLogs(); }
 
+// PDF generation (maintains aspect ratio)
 async function previewPDF() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-  let y = 15;
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 10;
   const lineHeight = 7;
+  let y = 15;
+
+  async function addImageSafe(src, x, yPos, maxWidth, maxHeight = null) {
+    if (!src) return 0;
+    return new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        const ratio = width / height;
+
+        if (width > maxWidth) { width = maxWidth; height = width / ratio; }
+        if (maxHeight && height > maxHeight) { height = maxHeight; width = height * ratio; }
+
+        doc.addImage(img, 'PNG', x, yPos, width, height);
+        resolve(height + 5);
+      };
+      img.onerror = () => resolve(0);
+      img.src = src;
+    });
+  }
 
   for (const l of logs) {
-    async function addImageSafe(src, x, yPos, w, h) {
-      if (!src) return;
-      return new Promise(resolve => {
-        const img = new Image();
-        img.onload = () => { doc.addImage(img, 'PNG', x, yPos, w, h); resolve(); };
-        img.onerror = () => resolve();
-        img.src = src;
-      });
-    }
-
-    // Draw background rectangle for section
     doc.setFillColor(245, 245, 245);
     doc.rect(margin - 2, y - 2, pageWidth - margin * 2 + 4, 50, 'F');
 
-    // Logo
-    await addImageSafe(l.logo, margin, y, 30, 20);
+    if (l.logo) await addImageSafe(l.logo, margin, y, 30, 20);
 
-    // Customer Name
     doc.setFontSize(16);
     doc.setTextColor(0, 0, 0);
     doc.text(`Customer: ${l.customer}`, margin + 35, y + 10);
 
-    // Time Spent
     doc.setFontSize(12);
     doc.text(`Time Spent: ${l.duration}`, margin + 35, y + 18);
-
     y += 25;
 
-    // Tasks
     doc.setFontSize(12);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Tasks Performed:`, margin, y);
-    const tasksText = l.tasks.join(', ') || 'None';
+    doc.text('Tasks Performed:', margin, y);
+    const taskLines = doc.splitTextToSize(l.tasks.join(', ') || 'None', pageWidth - margin * 2);
     doc.setFontSize(11);
-    doc.text(doc.splitTextToSize(tasksText, pageWidth - margin * 2), margin, y + lineHeight);
-    y += lineHeight + 5;
+    doc.text(taskLines, margin, y + lineHeight);
+    y += taskLines.length * lineHeight + 5;
 
-    // Notes
     doc.setFontSize(12);
     doc.text('Notes:', margin, y);
-    doc.setFontSize(11);
     const notesLines = doc.splitTextToSize(l.notes || 'None', pageWidth - margin * 2);
+    doc.setFontSize(11);
     doc.text(notesLines, margin, y + lineHeight);
     y += notesLines.length * lineHeight + 5;
 
-    // Photo
-    if (l.photo) {
-      const photoWidth = pageWidth - margin * 2;
-      const photoHeight = (photoWidth * 3) / 4; // Maintain 4:3 ratio
-      await addImageSafe(l.photo, margin, y, photoWidth, photoHeight);
-      y += photoHeight + 5;
-    }
+    if (l.photo) { const photoHeight = await addImageSafe(l.photo, margin, y, pageWidth - margin * 2); y += photoHeight; }
+    if (l.signature) { const sigHeight = await addImageSafe(l.signature, margin, y, pageWidth / 2); y += sigHeight + 5; }
 
-    // Signature
-    if (l.signature) {
-      const sigWidth = pageWidth / 2;
-      const sigHeight = 30;
-      await addImageSafe(l.signature, margin, y, sigWidth, sigHeight);
-      y += sigHeight + 10;
-    }
-
-    // Check for page overflow
-    if (y > doc.internal.pageSize.getHeight() - 30) {
-      doc.addPage();
-      y = 15;
-    }
+    if (y > pageHeight - 30) { doc.addPage(); y = 15; }
   }
 
-  // Open PDF in new tab
   window.open(doc.output('bloburl'), '_blank');
 }
 
