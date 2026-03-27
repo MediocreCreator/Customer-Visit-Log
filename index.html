@@ -7,46 +7,21 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 body { font-family: Arial, sans-serif; background:#1e1e2f; color:#fff; margin:0; }
-.container { max-width:500px; margin:auto; padding:15px; }
-h2 { text-align:center; margin-bottom:10px; }
-
-.form-group { margin-bottom:10px; }
-label { font-size:14px; opacity:0.8; }
-
-input, textarea, select {
-  width:100%;
-  padding:10px;
-  border-radius:6px;
-  border:none;
-  font-size:14px;
-  margin-top:4px;
-}
-
-textarea { resize:vertical; min-height:70px; }
-
-button {
-  width:100%;
-  padding:12px;
-  border:none;
-  border-radius:8px;
-  font-size:15px;
-  margin-top:8px;
-  background:#4CAF50;
-  color:#fff;
-}
-
-.button-row {
-  display:flex;
-  gap:8px;
-}
+.container { max-width:420px; margin:auto; padding:12px; }
+h2 { text-align:center; margin-bottom:10px; font-size:20px; }
+.form-group { margin-bottom:8px; }
+label { font-size:13px; opacity:0.8; }
+input, textarea { width:100%; padding:8px; border-radius:6px; border:none; font-size:14px; margin-top:3px; }
+textarea { min-height:60px; }
+button { width:100%; padding:10px; border:none; border-radius:8px; font-size:14px; margin-top:6px; background:#4CAF50; color:#fff; }
+.button-row { display:flex; gap:6px; }
 .button-row button { flex:1; }
-
-canvas { background:#fff; border-radius:8px; margin-top:8px; width:100%; height:150px; }
-
-.log { background:#111; padding:12px; margin-top:12px; border-radius:8px; font-size:13px; }
+.tasks { display:grid; grid-template-columns:1fr 1fr; gap:5px; font-size:13px; }
+canvas { background:#fff; border-radius:8px; width:100%; height:130px; margin-top:6px; }
+.log { background:#111; padding:10px; margin-top:10px; border-radius:8px; font-size:12px; }
 img { max-width:100%; margin-top:5px; border-radius:6px; }
-.delete-btn { background:#c0392b; margin-top:6px; }
-.clear-all { background:#e67e22; }
+.logo { max-height:40px; }
+.delete-btn { background:#c0392b; }
 </style>
 </head>
 <body>
@@ -55,38 +30,37 @@ img { max-width:100%; margin-top:5px; border-radius:6px; }
 <h2>Customer Call Sheet</h2>
 
 <div class="form-group">
-<label>Customer / Shop</label>
-<input id="customer" placeholder="Enter shop name" />
+<label>Customer</label>
+<input id="customer" />
 </div>
 
 <div class="form-group">
-<label>Vehicle</label>
-<input id="vehicle" placeholder="Make / Model" />
+<label>Customer Logo</label>
+<input type="file" id="logo" accept="image/*" />
 </div>
 
 <div class="form-group">
-<label>Task Performed</label>
-<select id="task">
-<option>Panel Repair</option>
-<option>Primer Application</option>
-<option>Body Filler Work</option>
-<option>Sanding / Prep</option>
-<option>Spray Painting</option>
-<option>Spray Painter Assistance</option>
-<option>Color Matching</option>
-<option>Polishing / Buffing</option>
-<option>Paint Room Maintenance</option>
-<option>Spray Booth Maintenance</option>
-<option>Equipment Inspection</option>
-<option>PC Updates</option>
-<option>Hardware Updates</option>
-<option>Software Updates</option>
-</select>
+<label>Tasks Performed</label>
+<div class="tasks">
+<label><input type="checkbox" value="Panel Repair"> Panel Repair</label>
+<label><input type="checkbox" value="Primer"> Primer</label>
+<label><input type="checkbox" value="Body Filler"> Body Filler</label>
+<label><input type="checkbox" value="Sanding"> Sanding</label>
+<label><input type="checkbox" value="Spray Painting"> Spray Painting</label>
+<label><input type="checkbox" value="Assistance"> Assistance</label>
+<label><input type="checkbox" value="Color Matching"> Color Match</label>
+<label><input type="checkbox" value="Polishing"> Polishing</label>
+<label><input type="checkbox" value="Paint Room"> Paint Room</label>
+<label><input type="checkbox" value="Booth Maintenance"> Booth</label>
+<label><input type="checkbox" value="PC Updates"> PC</label>
+<label><input type="checkbox" value="Software Updates"> Software</label>
+</div>
+<input id="otherTasks" placeholder="Other tasks / remarks..." />
 </div>
 
 <div class="form-group">
 <label>Notes</label>
-<textarea id="notes" placeholder="Describe work done..."></textarea>
+<textarea id="notes"></textarea>
 </div>
 
 <div class="button-row">
@@ -99,16 +73,15 @@ img { max-width:100%; margin-top:5px; border-radius:6px; }
 <input type="file" id="photo" accept="image/*" />
 </div>
 
-<button onclick="captureLocation()">Capture Location</button>
+<button onclick="captureLocation()">Location</button>
 
 <div class="form-group">
 <label>Signature</label>
 <canvas id="signature"></canvas>
-<button onclick="clearSignature()">Clear Signature</button>
+<button onclick="clearSignature()">Clear</button>
 </div>
 
-<button onclick="saveLog()">Save Log</button>
-<button class="clear-all" onclick="clearAllLogs()">Delete All Logs</button>
+<button onclick="saveLog()">Save</button>
 <button onclick="exportPDF()">Export PDF</button>
 
 <div id="logs"></div>
@@ -116,148 +89,91 @@ img { max-width:100%; margin-top:5px; border-radius:6px; }
 
 <script>
 let logs = JSON.parse(localStorage.getItem('logs')) || [];
-let startTime = '', endTime = '', visitLocation = '', photo = '';
+let startTime=null,endTime=null,visitLocation='',logo='',photo='';
 
-function startVisit(){ startTime = new Date().toLocaleTimeString(); }
-function endVisit(){ endTime = new Date().toLocaleTimeString(); }
+function startVisit(){ startTime=new Date(); }
+function endVisit(){ endTime=new Date(); }
 
-function captureLocation(){
- if(!navigator.geolocation){ alert('Geolocation not supported'); return; }
- navigator.geolocation.getCurrentPosition(
-  pos=>{ visitLocation = pos.coords.latitude+','+pos.coords.longitude; alert('Location captured'); },
-  err=>{ alert('Location failed: ' + err.message + ' (Use HTTPS)'); }
- );
-}
+function getDuration(){ if(!startTime||!endTime) return ''; let d=(endTime-startTime)/1000; return Math.floor(d/3600)+"h "+Math.floor((d%3600)/60)+"m"; }
 
-// Photo
+function captureLocation(){ navigator.geolocation.getCurrentPosition(p=>{ visitLocation=p.coords.latitude+','+p.coords.longitude; }); }
 
-document.getElementById('photo').addEventListener('change', e=>{
- const file = e.target.files[0];
- if(!file) return;
- const reader = new FileReader();
- reader.onload = ()=> photo = reader.result;
- reader.readAsDataURL(file);
-});
+document.getElementById('logo').addEventListener('change',e=>{ let f=e.target.files[0]; if(!f)return; let r=new FileReader(); r.onload=()=>logo=r.result; r.readAsDataURL(f); });
 
-// Signature
-const canvas = document.getElementById('signature');
-const ctx = canvas.getContext('2d');
-let drawing = false;
+document.getElementById('photo').addEventListener('change',e=>{ let f=e.target.files[0]; if(!f)return; let r=new FileReader(); r.onload=()=>photo=r.result; r.readAsDataURL(f); });
 
-// Fill white background so it's not transparent
-ctx.fillStyle = "#ffffff";
-ctx.fillRect(0, 0, canvas.width, canvas.height);
+const canvas=document.getElementById('signature'); const ctx=canvas.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+let drawing=false;
+canvas.addEventListener('touchstart',e=>{ drawing=true; ctx.beginPath(); draw(e); });
+canvas.addEventListener('touchmove',draw);
+canvas.addEventListener('touchend',()=>drawing=false);
 
-canvas.addEventListener('touchstart', e=>{ drawing = true; ctx.beginPath(); draw(e); });
-canvas.addEventListener('touchmove', draw);
-canvas.addEventListener('touchend', ()=>{ drawing=false; ctx.beginPath(); });
+function draw(e){ if(!drawing)return; e.preventDefault(); let r=canvas.getBoundingClientRect(); let t=e.touches[0]; let x=t.clientX-r.left; let y=t.clientY-r.top; ctx.lineWidth=2; ctx.lineCap='round'; ctx.strokeStyle='#000'; ctx.lineTo(x,y); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x,y); }
 
-function draw(e){
- if(!drawing) return;
- e.preventDefault();
- const rect = canvas.getBoundingClientRect();
- const touch = e.touches[0];
- const x = touch.clientX - rect.left;
- const y = touch.clientY - rect.top;
- ctx.lineWidth = 2;
- ctx.lineCap = 'round';
- ctx.strokeStyle = '#000';
- ctx.lineTo(x,y);
- ctx.stroke();
- ctx.beginPath();
- ctx.moveTo(x,y);
-}
+function clearSignature(){ ctx.clearRect(0,0,canvas.width,canvas.height); ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height); }
 
-function clearSignature(){
- ctx.clearRect(0,0,canvas.width,canvas.height);
- ctx.fillStyle = "#ffffff";
- ctx.fillRect(0, 0, canvas.width, canvas.height);
-}
-
-function isCanvasEmpty(){
- const blank = document.createElement('canvas');
- blank.width = canvas.width;
- blank.height = canvas.height;
- const blankCtx = blank.getContext('2d');
- blankCtx.fillStyle = "#ffffff";
- blankCtx.fillRect(0,0,blank.width,blank.height);
- return canvas.toDataURL() === blank.toDataURL();
-}
+function getTasks(){ return [...document.querySelectorAll('.tasks input:checked')].map(i=>i.value); }
 
 function saveLog(){
- const signature = isCanvasEmpty() ? '' : canvas.toDataURL('image/png');
-
- const log = {
-  customer: customer.value,
-  vehicle: vehicle.value,
-  task: task.value,
-  notes: notes.value,
-  start: startTime,
-  end: endTime,
-  location: visitLocation,
-  photo,
-  signature
- };
- logs.push(log);
- localStorage.setItem('logs', JSON.stringify(logs));
- displayLogs();
-}
-
-function deleteLog(index){
- logs.splice(index,1);
- localStorage.setItem('logs', JSON.stringify(logs));
- displayLogs();
-}
-
-function clearAllLogs(){
- if(confirm('Delete all logs?')){
-  logs = [];
-  localStorage.removeItem('logs');
-  displayLogs();
- }
+ const log={ customer:customer.value, tasks:getTasks(), other:otherTasks.value, notes:notes.value, duration:getDuration(), location:visitLocation, logo, photo, signature:canvas.toDataURL() };
+ logs.push(log); localStorage.setItem('logs',JSON.stringify(logs)); displayLogs();
 }
 
 function displayLogs(){
- const logsDiv = document.getElementById('logs');
- logsDiv.innerHTML='';
- logs.forEach((l, index)=>{
-  logsDiv.innerHTML += `
-   <div class="log">
-    <b>${l.customer}</b><br>
-    🚗 ${l.vehicle}<br>
-    🔧 ${l.task}<br>
-    📝 ${l.notes}<br>
-    ⏱️ ${l.start} - ${l.end}<br>
-    ${l.location ? `📍 ${l.location}<br>` : ''}
-    ${l.photo ? `<img src="${l.photo}" />` : ''}
-    ${l.signature ? `<div>✍️ Signature:</div><img src="${l.signature}" />` : ''}
-    <button class="delete-btn" onclick="deleteLog(${index})">Delete</button>
-   </div>`;
+ let div=document.getElementById('logs'); div.innerHTML='';
+ logs.forEach((l,i)=>{
+  div.innerHTML+=`<div class="log">
+  ${l.logo?`<img class="logo" src="${l.logo}"/>`:''}
+  <b>${l.customer}</b><br>
+  🔧 ${l.tasks.join(', ')} ${l.other||''}<br>
+  📝 ${l.notes}<br>
+  ⏱️ ${l.duration}<br>
+  ${l.location?`📍 ${l.location}<br>`:''}
+  ${l.photo?`<img src="${l.photo}"/>`:''}
+  <img src="${l.signature}"/>
+  <button class="delete-btn" onclick="deleteLog(${i})">Delete</button>
+  </div>`;
  });
 }
+
+function deleteLog(i){ logs.splice(i,1); localStorage.setItem('logs',JSON.stringify(logs)); displayLogs(); }
 
 function exportPDF(){
  const { jsPDF } = window.jspdf;
  const doc = new jsPDF();
- let y=10;
- logs.forEach(l=>{
-  doc.text(`Customer: ${l.customer}`,10,y); y+=6;
-  doc.text(`Vehicle: ${l.vehicle}`,10,y); y+=6;
-  doc.text(`Task: ${l.task}`,10,y); y+=6;
-  doc.text(`Notes: ${l.notes}`,10,y); y+=6;
-  doc.text(`Time: ${l.start}-${l.end}`,10,y); y+=6;
-  doc.text(`Location: ${l.location}`,10,y); y+=6;
-  if(l.signature){ doc.addImage(l.signature,'PNG',10,y,50,20); y+=25; }
-  y+=5;
-  if(y > 270){ doc.addPage(); y = 10; }
+
+ logs.forEach((l, index)=>{
+  if(index>0) doc.addPage();
+
+  // background
+  doc.setFillColor(30,30,47);
+  doc.rect(0,0,210,297,'F');
+
+  let y=20;
+
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(18);
+  doc.text("Customer Call Sheet",105,y,null,null,'center');
+
+  y+=10;
+
+  if(l.logo){ doc.addImage(l.logo,'PNG',80,y,50,20); y+=25; }
+
+  doc.setFontSize(12);
+  doc.text(`Customer: ${l.customer}`,20,y); y+=8;
+  doc.text(`Tasks: ${l.tasks.join(', ')} ${l.other||''}`,20,y); y+=8;
+  doc.text(`Notes: ${l.notes}`,20,y); y+=8;
+  doc.text(`Time Spent: ${l.duration}`,20,y); y+=8;
+
+  if(l.photo){ doc.addImage(l.photo,'JPEG',20,y,160,90); y+=95; }
+
+  if(l.signature){ doc.text("Signature:",20,y); y+=5; doc.addImage(l.signature,'PNG',20,y,80,30); }
  });
- doc.save('logs.pdf');
+
+ doc.save('CallSheet.pdf');
 }
 
-(function test(){
- console.assert(Array.isArray(logs), 'Logs should be array');
- console.assert(typeof deleteLog === 'function', 'deleteLog missing');
-})();
+(function test(){ console.assert(typeof exportPDF==='function','PDF missing');})();
 
 displayLogs();
 </script>
