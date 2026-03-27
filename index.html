@@ -4,32 +4,142 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Customer Call Sheet</title>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
 <style>
-body { font-family: Arial, sans-serif; background:#1e1e2f; color:#fff; margin:0; }
-.container { max-width:420px; margin:auto; padding:12px; }
-h2 { text-align:center; margin-bottom:10px; font-size:20px; }
+* { box-sizing: border-box; }
 
-.form-group { margin-bottom:8px; }
-label { font-size:13px; opacity:0.8; }
+body {
+  font-family: Arial, sans-serif;
+  background:#1e1e2f;
+  color:#fff;
+  margin:0;
+}
 
-input, textarea { width:100%; padding:8px; border-radius:6px; border:none; font-size:14px; margin-top:3px; }
-textarea { min-height:60px; }
+.container {
+  width:100%;
+  max-width:420px;
+  margin:auto;
+  padding:16px 12px 20px;
+}
 
-button { width:100%; padding:10px; border:none; border-radius:8px; font-size:14px; margin-top:6px; background:#4CAF50; color:#fff; cursor:pointer; }
-.button-row { display:flex; gap:6px; }
+h2 {
+  text-align:center;
+  margin-bottom:12px;
+  font-size:20px;
+}
+
+.form-group { margin-bottom:10px; }
+
+label {
+  font-size:13px;
+  opacity:0.85;
+}
+
+input, textarea {
+  width:100%;
+  padding:10px;
+  border-radius:8px;
+  border:none;
+  font-size:14px;
+  margin-top:4px;
+}
+
+textarea { min-height:70px; }
+
+button {
+  width:100%;
+  padding:12px;
+  border:none;
+  border-radius:10px;
+  font-size:14px;
+  margin-top:8px;
+  background:#4CAF50;
+  color:#fff;
+  cursor:pointer;
+}
+
+.button-row {
+  display:flex;
+  gap:8px;
+}
+
 .button-row button { flex:1; }
 
-.tasks { display:grid; grid-template-columns:1fr 1fr; gap:5px; font-size:13px; }
+.tasks {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:6px;
+  font-size:13px;
+}
 
-canvas { background:#fff; border-radius:8px; width:100%; height:130px; touch-action:none; display:block; margin-top:6px; }
+canvas {
+  background:#fff;
+  border-radius:10px;
+  width:100%;
+  height:150px;
+  display:block;
+  margin-top:6px;
+  touch-action:none;
+}
 
-.log { background:#111; padding:10px; margin-top:10px; border-radius:8px; font-size:12px; }
-img { max-width:100%; margin-top:5px; border-radius:6px; }
+.log {
+  background:#111;
+  padding:10px;
+  margin-top:10px;
+  border-radius:10px;
+  font-size:12px;
+}
+
+img {
+  max-width:100%;
+  margin-top:6px;
+  border-radius:8px;
+}
+
 .logo { max-height:40px; }
-.delete-btn { background:#c0392b; color:#fff; margin-top:5px; }
+
+.delete-btn {
+  background:#c0392b;
+  margin-top:6px;
+}
+
+/* PDF MODAL */
+.pdf-modal {
+  position: fixed;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+  background:#000;
+  z-index:9999;
+  display:none;
+  flex-direction:column;
+}
+
+.pdf-header {
+  display:flex;
+  justify-content:space-between;
+  padding:10px;
+  background:#111;
+}
+
+.pdf-header button {
+  width:auto;
+  padding:8px 12px;
+  font-size:13px;
+}
+
+#pdfFrame {
+  flex:1;
+  width:100%;
+  border:none;
+  background:#fff;
+}
 </style>
 </head>
+
 <body>
 
 <div class="container">
@@ -92,240 +202,236 @@ img { max-width:100%; margin-top:5px; border-radius:6px; }
 <div id="logs"></div>
 </div>
 
+<!-- PDF MODAL -->
+<div id="pdfModal" class="pdf-modal">
+  <div class="pdf-header">
+    <button onclick="closePDF()">Close</button>
+    <button onclick="downloadPDF()">Download</button>
+  </div>
+  <iframe id="pdfFrame"></iframe>
+</div>
+
 <script>
 let logs = JSON.parse(localStorage.getItem('logs')) || [];
 let startTime=null, endTime=null, visitLocation='';
 let logo='', photo='';
+let currentPDFBlob=null;
 
-const customer = document.getElementById('customer');
-const notes = document.getElementById('notes');
 const canvas = document.getElementById('signature');
 const ctx = canvas.getContext('2d');
 
-// High DPI canvas + preserve signature
+/* CANVAS FIX */
 function resizeCanvas(){
-  const data = canvas.toDataURL(); // save current drawing
   const ratio = window.devicePixelRatio || 1;
-  canvas.width = canvas.offsetWidth * ratio;
-  canvas.height = canvas.offsetHeight * ratio;
-  ctx.scale(ratio, ratio);
-  ctx.fillStyle='#fff';
-  ctx.fillRect(0,0,canvas.offsetWidth,canvas.offsetHeight);
+  const rect = canvas.getBoundingClientRect();
 
-  // redraw previous signature
-  const img = new Image();
-  img.src = data;
-  img.onload = () => ctx.drawImage(img, 0, 0, canvas.offsetWidth, canvas.offsetHeight);
+  canvas.width = rect.width * ratio;
+  canvas.height = rect.height * ratio;
+
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.scale(ratio, ratio);
+
+  ctx.fillStyle="#fff";
+  ctx.fillRect(0,0,rect.width,rect.height);
 }
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
-window.addEventListener('orientationchange', resizeCanvas);
 
-// Signature drawing
-let drawing = false;
-function startDraw(e){ 
-  drawing = true; 
-  ctx.beginPath(); 
-  draw(e); 
-}
-function endDraw(){ 
-  drawing = false; 
-  ctx.beginPath(); 
-}
+/* DRAW */
+let drawing=false;
+
+canvas.addEventListener('pointerdown', e=>{
+  drawing=true;
+  ctx.beginPath();
+  draw(e);
+});
+
+canvas.addEventListener('pointermove', draw);
+canvas.addEventListener('pointerup', ()=>drawing=false);
+canvas.addEventListener('pointerleave', ()=>drawing=false);
+
 function draw(e){
   if(!drawing) return;
-  e.preventDefault(); // prevent scroll
   const r = canvas.getBoundingClientRect();
-  let x, y;
-  if(e.touches){
-    x = e.touches[0].clientX - r.left;
-    y = e.touches[0].clientY - r.top;
-  } else {
-    x = e.clientX - r.left;
-    y = e.clientY - r.top;
-  }
-  ctx.lineWidth = 2;
-  ctx.lineCap = 'round';
-  ctx.strokeStyle = '#000';
-  ctx.lineTo(x, y);
+  const x = e.clientX - r.left;
+  const y = e.clientY - r.top;
+
+  ctx.lineWidth=2;
+  ctx.lineCap='round';
+  ctx.strokeStyle='#000';
+
+  ctx.lineTo(x,y);
   ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(x, y);
+  ctx.moveTo(x,y);
 }
 
-// Pointer events
-canvas.addEventListener('pointerdown', startDraw);
-canvas.addEventListener('pointermove', draw);
-canvas.addEventListener('pointerup', endDraw);
-canvas.addEventListener('pointerleave', endDraw);
-
-// Touch events for mobile
-canvas.addEventListener('touchstart', startDraw, { passive: false });
-canvas.addEventListener('touchmove', draw, { passive: false });
-canvas.addEventListener('touchend', endDraw, { passive: false });
-canvas.addEventListener('touchcancel', endDraw, { passive: false });
-
-// Clear signature
 function clearSignature(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.fillStyle='#fff';
-  ctx.fillRect(0,0,canvas.width,canvas.height);
+  resizeCanvas();
 }
 
-// Visit timing
+/* LOGIC */
 function startVisit(){ startTime=new Date(); }
 function endVisit(){ endTime=new Date(); }
+
 function getDuration(){
   if(!startTime||!endTime) return '';
   const diff=(endTime-startTime)/1000;
-  const h=Math.floor(diff/3600);
-  const m=Math.floor((diff%3600)/60);
-  return `${h}h ${m}m`;
+  return `${Math.floor(diff/3600)}h ${Math.floor((diff%3600)/60)}m`;
 }
 
-// Location
 function captureLocation(){
-  if(!navigator.geolocation) return alert('Geolocation not supported');
-  navigator.geolocation.getCurrentPosition(p=>{
+  navigator.geolocation?.getCurrentPosition(p=>{
     visitLocation=`${p.coords.latitude},${p.coords.longitude}`;
   });
 }
 
-// Tasks
-function getTasks(){ return [...document.querySelectorAll('.tasks input:checked')].map(i=>i.value); }
+function getTasks(){
+  return [...document.querySelectorAll('.tasks input:checked')].map(i=>i.value);
+}
 
-// Image uploads
 function handleImageUpload(input, setter){
-  input.addEventListener('change', e=>{
+  input.onchange = e=>{
     const file=e.target.files[0];
     if(!file) return;
     const reader=new FileReader();
     reader.onload=()=> setter(reader.result);
     reader.readAsDataURL(file);
-  });
+  };
 }
-handleImageUpload(document.getElementById('logo'), val=> logo=val);
-handleImageUpload(document.getElementById('photo'), val=> photo=val);
 
-// Logs
+handleImageUpload(document.getElementById('logo'), v=>logo=v);
+handleImageUpload(document.getElementById('photo'), v=>photo=v);
+
 function saveLog(){
-  const log={
+  logs.push({
     customer: customer.value,
     tasks: getTasks(),
     notes: notes.value,
-    start: startTime,
-    end: endTime,
     duration: getDuration(),
     location: visitLocation,
-    logo,
-    photo,
+    logo, photo,
     signature: canvas.toDataURL()
-  };
-  logs.push(log);
+  });
+
   localStorage.setItem('logs', JSON.stringify(logs));
   displayLogs();
 }
 
 function displayLogs(){
   const div=document.getElementById('logs');
-  div.innerHTML='';
-  logs.forEach((l,i)=>{
-    div.innerHTML+=`
-      <div class="log">
-        ${l.logo ? `<img class="logo" src="${l.logo}"/>` : ''}
-        <b>${l.customer}</b><br>
-        🔧 ${l.tasks.join(', ')}<br>
-        📝 ${l.notes}<br>
-        ⏱️ ${l.duration}<br>
-        ${l.location ? `📍 ${l.location}<br>` : ''}
-        ${l.photo ? `<img src="${l.photo}" />` : ''}
-        <img src="${l.signature}" />
-        <button class="delete-btn" onclick="deleteLog(${i})">Delete</button>
-      </div>`;
-  });
+  div.innerHTML = logs.map((l,i)=>`
+    <div class="log">
+      ${l.logo ? `<img class="logo" src="${l.logo}">` : ''}
+      <b>${l.customer}</b><br>
+      🔧 ${l.tasks.join(', ')}<br>
+      📝 ${l.notes}<br>
+      ⏱️ ${l.duration}<br>
+      ${l.location ? `📍 ${l.location}<br>` : ''}
+      ${l.photo ? `<img src="${l.photo}">` : ''}
+      <img src="${l.signature}">
+      <button class="delete-btn" onclick="deleteLog(${i})">Delete</button>
+    </div>
+  `).join('');
 }
 
-function deleteLog(i){ logs.splice(i,1); localStorage.setItem('logs', JSON.stringify(logs)); displayLogs(); }
+function deleteLog(i){
+  logs.splice(i,1);
+  localStorage.setItem('logs', JSON.stringify(logs));
+  displayLogs();
+}
 
-async function previewPDF() {
+/* PDF PREVIEW */
+async function previewPDF(){
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-  let y = 15;
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 10;
-  const lineHeight = 7;
+  const doc = new jsPDF({ unit:'mm', format:'a4' });
 
-  for (const l of logs) {
-    async function addImageSafe(src, x, yPos, w, h) {
-      if (!src) return;
-      return new Promise(resolve => {
-        const img = new Image();
-        img.onload = () => { doc.addImage(img, 'PNG', x, yPos, w, h); resolve(); };
-        img.onerror = () => resolve();
-        img.src = src;
-      });
-    }
+  let y=15;
+  const margin=10;
+  const pageWidth=doc.internal.pageSize.getWidth();
+  const lineHeight=7;
 
-    // Draw background rectangle for section
-    doc.setFillColor(245, 245, 245);
-    doc.rect(margin - 2, y - 2, pageWidth - margin * 2 + 4, 50, 'F');
+  async function addImageSafe(src,x,yPos,w,h){
+    if(!src) return;
+    return new Promise(resolve=>{
+      const img=new Image();
+      img.onload=()=>{ doc.addImage(img,'PNG',x,yPos,w,h); resolve(); };
+      img.onerror=resolve;
+      img.src=src;
+    });
+  }
 
-    // Logo
-    await addImageSafe(l.logo, margin, y, 30, 20);
+  for(const l of logs){
 
-    // Customer Name
+    doc.setFillColor(245,245,245);
+    doc.rect(margin-2,y-2,pageWidth-margin*2+4,50,'F');
+
+    await addImageSafe(l.logo,margin,y,30,20);
+
     doc.setFontSize(16);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Customer: ${l.customer}`, margin + 35, y + 10);
+    doc.text(`Customer: ${l.customer}`,margin+35,y+10);
 
-    // Time Spent
     doc.setFontSize(12);
-    doc.text(`Time Spent: ${l.duration}`, margin + 35, y + 18);
+    doc.text(`Time: ${l.duration}`,margin+35,y+18);
 
-    y += 25;
+    y+=25;
 
-    // Tasks
     doc.setFontSize(12);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Tasks Performed:`, margin, y);
-    const tasksText = l.tasks.join(', ') || 'None';
+    doc.text("Tasks:",margin,y);
+
+    const tasks=l.tasks.join(', ')||'None';
     doc.setFontSize(11);
-    doc.text(doc.splitTextToSize(tasksText, pageWidth - margin * 2), margin, y + lineHeight);
-    y += lineHeight + 5;
+    doc.text(doc.splitTextToSize(tasks,pageWidth-margin*2),margin,y+7);
 
-    // Notes
+    y+=12;
+
     doc.setFontSize(12);
-    doc.text('Notes:', margin, y);
-    doc.setFontSize(11);
-    const notesLines = doc.splitTextToSize(l.notes || 'None', pageWidth - margin * 2);
-    doc.text(notesLines, margin, y + lineHeight);
-    y += notesLines.length * lineHeight + 5;
+    doc.text("Notes:",margin,y);
 
-    // Photo
-    if (l.photo) {
-      const photoWidth = pageWidth - margin * 2;
-      const photoHeight = (photoWidth * 3) / 4; // Maintain 4:3 ratio
-      await addImageSafe(l.photo, margin, y, photoWidth, photoHeight);
-      y += photoHeight + 5;
+    const notesLines=doc.splitTextToSize(l.notes||'None',pageWidth-margin*2);
+    doc.setFontSize(11);
+    doc.text(notesLines,margin,y+7);
+
+    y+=notesLines.length*lineHeight+5;
+
+    if(l.photo){
+      const w=pageWidth-margin*2;
+      const h=(w*3)/4;
+      await addImageSafe(l.photo,margin,y,w,h);
+      y+=h+5;
     }
 
-    // Signature
-    if (l.signature) {
-      const sigWidth = pageWidth / 2;
-      const sigHeight = 30;
-      await addImageSafe(l.signature, margin, y, sigWidth, sigHeight);
-      y += sigHeight + 10;
+    if(l.signature){
+      await addImageSafe(l.signature,margin,y,pageWidth/2,30);
+      y+=35;
     }
 
-    // Check for page overflow
-    if (y > doc.internal.pageSize.getHeight() - 30) {
+    if(y>270){
       doc.addPage();
-      y = 15;
+      y=15;
     }
   }
 
-  // Open PDF in new tab
-  window.open(doc.output('bloburl'), '_blank');
+  const blob=doc.output('blob');
+  currentPDFBlob=blob;
+
+  const url=URL.createObjectURL(blob);
+  document.getElementById('pdfFrame').src=url;
+  document.getElementById('pdfModal').style.display='flex';
+}
+
+function closePDF(){
+  document.getElementById('pdfModal').style.display='none';
+}
+
+function downloadPDF(){
+  if(!currentPDFBlob) return;
+  const url=URL.createObjectURL(currentPDFBlob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download="Customer_Call_Sheet.pdf";
+  a.click();
 }
 
 displayLogs();
