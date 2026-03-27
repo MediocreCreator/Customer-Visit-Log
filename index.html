@@ -10,8 +10,7 @@ body { font-family: Arial, sans-serif; background:#1e1e2f; color:#fff; margin:0;
 .container { max-width:420px; margin:auto; padding:12px; }
 h2 { text-align:center; margin-bottom:10px; font-size:20px; }
 
-.form-group
-label { font-size:13px; opacity:0.8; }
+.form-group label { font-size:13px; opacity:0.8; }
 
 input, textarea { width:96%; padding:8px; border-radius:6px; border:none; font-size:14px; margin-top:3px; }
 textarea { min-height:60px; }
@@ -84,8 +83,8 @@ img { max-width:100%; margin-top:5px; border-radius:6px; }
 <button onclick="clearSignature()">Clear</button>
 </div>
 
-<button onclick="saveLog()">Save</button>
-<button onclick="previewPDF()">Preview PDF</button>
+<!-- Single combined button -->
+<button onclick="saveAndPreview(event)">Save & Preview PDF</button>
 
 <div id="logs"></div>
 </div>
@@ -102,15 +101,14 @@ const ctx = canvas.getContext('2d');
 
 // High DPI canvas + preserve signature
 function resizeCanvas(){
-  const data = canvas.toDataURL(); // save current drawing
+  const data = canvas.toDataURL();
   const ratio = window.devicePixelRatio || 1;
   canvas.width = canvas.offsetWidth * ratio;
   canvas.height = canvas.offsetHeight * ratio;
   ctx.scale(ratio, ratio);
   ctx.fillStyle='#fff';
-  ctx.fillRect(0,0,canvas.offsetWidth,canvas.offsetHeight);
+  ctx.fillRect(0,0,canvas.offsetWidth, canvas.offsetHeight);
 
-  // redraw previous signature
   const img = new Image();
   img.src = data;
   img.onload = () => ctx.drawImage(img, 0, 0, canvas.offsetWidth, canvas.offsetHeight);
@@ -121,43 +119,23 @@ window.addEventListener('orientationchange', resizeCanvas);
 
 // Signature drawing
 let drawing = false;
-function startDraw(e){ 
-  drawing = true; 
-  ctx.beginPath(); 
-  draw(e); 
-}
-function endDraw(){ 
-  drawing = false; 
-  ctx.beginPath(); 
-}
+function startDraw(e){ drawing = true; ctx.beginPath(); draw(e); }
+function endDraw(){ drawing = false; ctx.beginPath(); }
 function draw(e){
   if(!drawing) return;
-  e.preventDefault(); // prevent scroll
+  e.preventDefault();
   const r = canvas.getBoundingClientRect();
   let x, y;
-  if(e.touches){
-    x = e.touches[0].clientX - r.left;
-    y = e.touches[0].clientY - r.top;
-  } else {
-    x = e.clientX - r.left;
-    y = e.clientY - r.top;
-  }
-  ctx.lineWidth = 2;
-  ctx.lineCap = 'round';
-  ctx.strokeStyle = '#000';
-  ctx.lineTo(x, y);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(x, y);
+  if(e.touches){ x = e.touches[0].clientX - r.left; y = e.touches[0].clientY - r.top; }
+  else { x = e.clientX - r.left; y = e.clientY - r.top; }
+  ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.strokeStyle = '#000';
+  ctx.lineTo(x, y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x, y);
 }
-
-// Pointer events
 canvas.addEventListener('pointerdown', startDraw);
 canvas.addEventListener('pointermove', draw);
 canvas.addEventListener('pointerup', endDraw);
 canvas.addEventListener('pointerleave', endDraw);
-
-// Touch events for mobile
 canvas.addEventListener('touchstart', startDraw, { passive: false });
 canvas.addEventListener('touchmove', draw, { passive: false });
 canvas.addEventListener('touchend', endDraw, { passive: false });
@@ -227,7 +205,6 @@ function displayLogs(){
         🔧 ${l.tasks.join(', ')}<br>
         📝 ${l.notes}<br>
         ⏱️ ${l.duration}<br>
-        ${l.location ? `📍 ${l.location}<br>` : ''}
         ${l.photo ? `<img src="${l.photo}" />` : ''}
         <img src="${l.signature}" />
         <button class="delete-btn" onclick="deleteLog(${i})">Delete</button>
@@ -237,7 +214,7 @@ function displayLogs(){
 
 function deleteLog(i){ logs.splice(i,1); localStorage.setItem('logs', JSON.stringify(logs)); displayLogs(); }
 
-// PDF generation (maintains aspect ratio)
+// PDF generation
 async function previewPDF() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
@@ -255,14 +232,10 @@ async function previewPDF() {
         let width = img.width;
         let height = img.height;
         const ratio = width / height;
-
-        // Scale to fit maxWidth
         if (width > maxWidth) { width = maxWidth; height = width / ratio; }
-        // Scale to fit maxHeight
         if (maxHeight && height > maxHeight) { height = maxHeight; width = height * ratio; }
-
         doc.addImage(img, 'PNG', x, yPos, width, height);
-        resolve(height + 5); // return height including spacing
+        resolve(height + 5);
       };
       img.onerror = () => resolve(0);
       img.src = src;
@@ -270,54 +243,63 @@ async function previewPDF() {
   }
 
   for (const l of logs) {
+    const taskLines = doc.splitTextToSize(l.tasks.join(', ') || 'None', pageWidth - margin * 2);
+    const notesLines = doc.splitTextToSize(l.notes || 'None', pageWidth - margin * 2);
+    let boxHeight = 25 + taskLines.length * lineHeight + notesLines.length * lineHeight + 10;
+    let photoHeight = l.photo ? 50 : 0;
+    let sigHeight = l.signature ? 40 : 0;
+    let requiredHeight = boxHeight + photoHeight + sigHeight;
+
+    if (y + requiredHeight > pageHeight - margin) {
+      doc.addPage();
+      y = 15;
+    }
+
     doc.setFillColor(245, 245, 245);
-    doc.rect(margin - 2, y - 2, pageWidth - margin * 2 + 4, 50, 'F');
+    doc.rect(margin - 2, y - 2, pageWidth - margin * 2 + 4, boxHeight, 'F');
 
     if (l.logo) await addImageSafe(l.logo, margin, y, 30, 20);
 
-    doc.setFontSize(16);
-    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(16); doc.setTextColor(0, 0, 0);
     doc.text(`Customer: ${l.customer}`, margin + 35, y + 10);
-
     doc.setFontSize(12);
     doc.text(`Time Spent: ${l.duration}`, margin + 35, y + 18);
     y += 25;
 
-    doc.setFontSize(12);
-    doc.text('Tasks Performed:', margin, y);
-    const taskLines = doc.splitTextToSize(l.tasks.join(', ') || 'None', pageWidth - margin * 2);
-    doc.setFontSize(11);
-    doc.text(taskLines, margin, y + lineHeight);
+    doc.setFontSize(12); doc.text('Tasks Performed:', margin, y);
+    doc.setFontSize(11); doc.text(taskLines, margin, y + lineHeight);
     y += taskLines.length * lineHeight + 5;
 
-    doc.setFontSize(12);
-    doc.text('Notes:', margin, y);
-    const notesLines = doc.splitTextToSize(l.notes || 'None', pageWidth - margin * 2);
-    doc.setFontSize(11);
-    doc.text(notesLines, margin, y + lineHeight);
+    doc.setFontSize(12); doc.text('Notes:', margin, y);
+    doc.setFontSize(11); doc.text(notesLines, margin, y + lineHeight);
     y += notesLines.length * lineHeight + 5;
 
-    // Determine remaining space for photo + signature
-    let remainingSpace = pageHeight - y - 30; // leave 30mm bottom margin
-    let sigHeight = l.signature ? 30 : 0;
-    let maxPhotoHeight = remainingSpace - sigHeight;
-
     if (l.photo) {
-      const photoHeight = await addImageSafe(l.photo, margin, y, pageWidth - margin * 2, maxPhotoHeight);
-      y += photoHeight;
+      const h = await addImageSafe(l.photo, margin, y, pageWidth - margin * 2, pageHeight - y - sigHeight - 10);
+      y += h;
     }
 
-    // Add signature
     if (l.signature) {
-      await addImageSafe(l.signature, margin, y, pageWidth / 2, 30);
-      y += 30 + 5;
+      const h = await addImageSafe(l.signature, margin, y, pageWidth / 2, 30);
+      y += h;
+      doc.setFontSize(11);
+      doc.text('Signed', margin, y);
+      y += 8;
     }
 
-    // If something still overflows, add a page
-    if (y > pageHeight - 30) { doc.addPage(); y = 15; }
+    y += 10;
   }
 
   window.open(doc.output('bloburl'), '_blank');
+}
+
+// Combined Save & Preview button with click disable
+async function saveAndPreview(event) {
+  const btn = event.target;
+  btn.disabled = true;
+  saveLog();
+  await previewPDF();
+  btn.disabled = false;
 }
 
 displayLogs();
