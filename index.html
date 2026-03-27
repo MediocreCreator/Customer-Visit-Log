@@ -11,7 +11,7 @@ body { font-family: Arial; background:#1e1e2f; color:#fff; margin:0; }
 input, textarea, select, button { width:100%; margin:8px 0; padding:12px; border-radius:8px; border:none; font-size:16px; }
 button { background:#4CAF50; color:#fff; }
 canvas { background:#fff; border-radius:8px; margin-top:10px; touch-action:none; }
-.log { background:#111; padding:10px; margin-top:10px; border-radius:5px; }
+.log { background:#111; padding:12px; margin-top:12px; border-radius:8px; }
 img { max-width:100px; display:block; margin-top:5px; }
 </style>
 </head>
@@ -53,11 +53,23 @@ function startVisit(){ startTime = new Date().toLocaleTimeString(); }
 function endVisit(){ endTime = new Date().toLocaleTimeString(); }
 
 function captureLocation(){
- navigator.geolocation.getCurrentPosition(pos=>{
-  visitLocation = pos.coords.latitude+','+pos.coords.longitude;
-  alert('Location captured');
- });
+ if(!navigator.geolocation){
+  alert('Geolocation not supported');
+  return;
+ }
+ navigator.geolocation.getCurrentPosition(
+  pos=>{
+    visitLocation = pos.coords.latitude+','+pos.coords.longitude;
+    alert('Location captured');
+  },
+  err=>{
+    alert('Location failed: ' + err.message + '\n(Requires HTTPS on mobile)');
+  },
+  { enableHighAccuracy:true, timeout:10000 }
+ );
 }
+
+// Photo
 
 document.getElementById('photo').addEventListener('change', e=>{
  const file = e.target.files[0];
@@ -72,9 +84,16 @@ const canvas = document.getElementById('signature');
 const ctx = canvas.getContext('2d');
 let drawing = false;
 
-canvas.addEventListener('touchstart', e=>{ drawing = true; ctx.beginPath(); draw(e); });
+canvas.addEventListener('touchstart', e=>{
+ drawing = true;
+ ctx.beginPath();
+ draw(e);
+});
 canvas.addEventListener('touchmove', draw);
-canvas.addEventListener('touchend', ()=> drawing=false);
+canvas.addEventListener('touchend', ()=>{
+ drawing = false;
+ ctx.beginPath();
+});
 
 function draw(e){
  if(!drawing) return;
@@ -93,8 +112,15 @@ function draw(e){
 
 function clearSignature(){ ctx.clearRect(0,0,canvas.width,canvas.height); }
 
+function isCanvasEmpty(){
+ const blank = document.createElement('canvas');
+ blank.width = canvas.width;
+ blank.height = canvas.height;
+ return canvas.toDataURL() === blank.toDataURL();
+}
+
 function saveLog(){
- const signature = canvas.toDataURL();
+ const signature = isCanvasEmpty() ? '' : canvas.toDataURL();
 
  const log = {
   customer: document.getElementById('customer').value,
@@ -107,6 +133,7 @@ function saveLog(){
   photo,
   signature
  };
+
  logs.push(log);
  localStorage.setItem('logs', JSON.stringify(logs));
  displayLogs();
@@ -119,11 +146,13 @@ function displayLogs(){
   logsDiv.innerHTML += `
    <div class="log">
     <b>${l.customer}</b><br>
-    ${l.task}<br>
-    ${l.start} - ${l.end}<br>
+    🚗 ${l.vehicle}<br>
+    🔧 ${l.task}<br>
+    📝 ${l.notes}<br>
+    ⏱️ ${l.start} - ${l.end}<br>
     ${l.location ? `📍 ${l.location}<br>` : ''}
     ${l.photo ? `<img src="${l.photo}" />` : ''}
-    ${l.signature ? `<img src="${l.signature}" />` : ''}
+    ${l.signature ? `<div>✍️ Signature:</div><img src="${l.signature}" />` : ''}
    </div>`;
  });
 }
@@ -134,8 +163,11 @@ function exportPDF(){
  let y=10;
  logs.forEach((l,i)=>{
   doc.text(`Customer: ${l.customer}`,10,y); y+=6;
+  doc.text(`Vehicle: ${l.vehicle}`,10,y); y+=6;
   doc.text(`Task: ${l.task}`,10,y); y+=6;
+  doc.text(`Notes: ${l.notes}`,10,y); y+=6;
   doc.text(`Time: ${l.start}-${l.end}`,10,y); y+=6;
+  doc.text(`Location: ${l.location}`,10,y); y+=6;
   if(l.signature){
     doc.addImage(l.signature,'PNG',10,y,50,20);
     y+=25;
@@ -146,14 +178,15 @@ function exportPDF(){
  doc.save('logs.pdf');
 }
 
-// Basic runtime test
-(function testApp(){
- console.assert(typeof startVisit === 'function', 'startVisit missing');
+// Tests
+(function test(){
+ console.assert(Array.isArray(logs), 'Logs should be array');
+ console.assert(typeof captureLocation === 'function', 'captureLocation missing');
  console.assert(typeof saveLog === 'function', 'saveLog missing');
- console.assert(Array.isArray(logs), 'logs should be array');
 })();
 
 // Init
+
 displayLogs();
 </script>
 
