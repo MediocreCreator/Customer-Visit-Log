@@ -258,14 +258,20 @@ async function previewPDF() {
     doc.setFillColor(245, 245, 245);
     doc.rect(margin - 2, y - 2, pageWidth - margin * 2 + 4, boxHeight, 'F');
 
+    // Logo
     if (l.logo) await addImageSafe(l.logo, margin, y, 30, 20);
 
-    doc.setFontSize(16); doc.setTextColor(0, 0, 0);
+    // Text
+    const currentDate = new Date().toLocaleDateString(); // <-- get current date
+    doc.setFontSize(16); 
+    doc.setTextColor(0, 0, 0);
     doc.text(`Customer: ${l.customer}`, margin + 35, y + 10);
     doc.setFontSize(12);
+    doc.text(`Date: ${currentDate}`, pageWidth - margin - 40, y + 10); // <-- add date to gray box
     doc.text(`Time Spent: ${l.duration}`, margin + 35, y + 18);
     y += 25;
 
+    // Tasks and Notes
     doc.setFontSize(12); doc.text('Tasks Performed:', margin, y);
     doc.setFontSize(11); doc.text(taskLines, margin, y + lineHeight);
     y += taskLines.length * lineHeight + 5;
@@ -274,11 +280,13 @@ async function previewPDF() {
     doc.setFontSize(11); doc.text(notesLines, margin, y + lineHeight);
     y += notesLines.length * lineHeight + 5;
 
+    // Photo
     if (l.photo) {
       const h = await addImageSafe(l.photo, margin, y, pageWidth - margin * 2, pageHeight - y - sigHeight - 10);
       y += h;
     }
 
+    // Signature
     if (l.signature) {
       const h = await addImageSafe(l.signature, margin, y, pageWidth / 2, 30);
       y += h;
@@ -288,7 +296,7 @@ async function previewPDF() {
     }
 
     y += 10;
-  }
+}
 
   window.open(doc.output('bloburl'), '_blank');
 }
