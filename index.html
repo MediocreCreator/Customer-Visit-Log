@@ -102,30 +102,39 @@ const notes = document.getElementById('notes');
 const canvas = document.getElementById('signature');
 const ctx = canvas.getContext('2d');
 
-// High DPI canvas for mobile
-function resizeCanvas(){
+let drawing=false;
+
+// --- CANVAS SETUP WITH MOBILE-PROOF RESIZE ---
+function resizeCanvas() {
   const ratio = window.devicePixelRatio || 1;
+  // Save content
+  const data = canvas.toDataURL();
   canvas.width = canvas.offsetWidth * ratio;
   canvas.height = canvas.offsetHeight * ratio;
   ctx.scale(ratio, ratio);
-  ctx.fillStyle='#fff';
-  ctx.fillRect(0,0,canvas.offsetWidth,canvas.offsetHeight);
+  const img = new Image();
+  img.onload = () => ctx.drawImage(img, 0, 0, canvas.offsetWidth, canvas.offsetHeight);
+  img.src = data;
 }
+// Initial resize
 resizeCanvas();
-window.addEventListener('resize', resizeCanvas);
+// Only resize on orientation change or explicit resize
+window.addEventListener('orientationchange', resizeCanvas);
+window.addEventListener('resize', () => {}); // optional empty resize to prevent auto-clear
 
-// Signature drawing (pointer + touch for Safari)
-let drawing=false;
+// --- DRAWING LOGIC ---
+function getCanvasCoords(e){
+  const r = canvas.getBoundingClientRect();
+  if(e.touches) return { x: e.touches[0].clientX - r.left, y: e.touches[0].clientY - r.top };
+  else return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+
 function startDraw(e){ drawing=true; ctx.beginPath(); draw(e); }
 function endDraw(){ drawing=false; ctx.beginPath(); }
-
 function draw(e){
   if(!drawing) return;
   e.preventDefault();
-  const r=canvas.getBoundingClientRect();
-  let x, y;
-  if(e.touches){ x=e.touches[0].clientX-r.left; y=e.touches[0].clientY-r.top; }
-  else { x=e.clientX-r.left; y=e.clientY-r.top; }
+  const {x, y} = getCanvasCoords(e);
   ctx.lineWidth=2; ctx.lineCap='round'; ctx.strokeStyle='#000';
   ctx.lineTo(x,y); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(x,y);
@@ -135,7 +144,6 @@ canvas.addEventListener('pointerdown', startDraw);
 canvas.addEventListener('pointermove', draw);
 canvas.addEventListener('pointerup', endDraw);
 canvas.addEventListener('pointerleave', endDraw);
-
 canvas.addEventListener('touchstart', startDraw);
 canvas.addEventListener('touchmove', draw);
 canvas.addEventListener('touchend', endDraw);
@@ -144,10 +152,10 @@ canvas.addEventListener('touchcancel', endDraw);
 function clearSignature(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.fillStyle='#fff';
-  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillRect(0,0,canvas.offsetWidth,canvas.offsetHeight);
 }
 
-// Visit timing
+// --- VISIT TIMING ---
 function startVisit(){ startTime=new Date(); }
 function endVisit(){ endTime=new Date(); }
 function getDuration(){
@@ -158,7 +166,7 @@ function getDuration(){
   return `${h}h ${m}m`;
 }
 
-// Location
+// --- LOCATION ---
 function captureLocation(){
   if(!navigator.geolocation) return alert('Geolocation not supported');
   navigator.geolocation.getCurrentPosition(p=>{
@@ -166,10 +174,10 @@ function captureLocation(){
   });
 }
 
-// Tasks
+// --- TASKS ---
 function getTasks(){ return [...document.querySelectorAll('.tasks input:checked')].map(i=>i.value); }
 
-// Image uploads
+// --- IMAGE UPLOADS ---
 function handleImageUpload(input, setter){
   input.addEventListener('change', e=>{
     const file=e.target.files[0];
@@ -182,7 +190,7 @@ function handleImageUpload(input, setter){
 handleImageUpload(document.getElementById('logo'), val=> logo=val);
 handleImageUpload(document.getElementById('photo'), val=> photo=val);
 
-// Logs
+// --- LOGS ---
 function saveLog(){
   const log={
     customer: customer.value,
@@ -222,6 +230,7 @@ function displayLogs(){
 
 function deleteLog(i){ logs.splice(i,1); localStorage.setItem('logs', JSON.stringify(logs)); displayLogs(); }
 
+// --- PDF PREVIEW ---
 async function previewPDF() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
@@ -241,7 +250,7 @@ async function previewPDF() {
       });
     }
 
-    // Draw background rectangle for section
+    // Background
     doc.setFillColor(245, 245, 245);
     doc.rect(margin - 2, y - 2, pageWidth - margin * 2 + 4, 50, 'F');
 
@@ -261,7 +270,6 @@ async function previewPDF() {
 
     // Tasks
     doc.setFontSize(12);
-    doc.setTextColor(0, 0, 0);
     doc.text(`Tasks Performed:`, margin, y);
     const tasksText = l.tasks.join(', ') || 'None';
     doc.setFontSize(11);
@@ -279,7 +287,7 @@ async function previewPDF() {
     // Photo
     if (l.photo) {
       const photoWidth = pageWidth - margin * 2;
-      const photoHeight = (photoWidth * 3) / 4; // Maintain 4:3 ratio
+      const photoHeight = (photoWidth * 3) / 4;
       await addImageSafe(l.photo, margin, y, photoWidth, photoHeight);
       y += photoHeight + 5;
     }
@@ -292,14 +300,13 @@ async function previewPDF() {
       y += sigHeight + 10;
     }
 
-    // Check for page overflow
+    // Page overflow
     if (y > doc.internal.pageSize.getHeight() - 30) {
       doc.addPage();
       y = 15;
     }
   }
 
-  // Open PDF in new tab
   window.open(doc.output('bloburl'), '_blank');
 }
 
