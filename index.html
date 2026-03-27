@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Advanced Visit Logger</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+body { font-family: Arial; background:#1e1e2f; color:#fff; margin:0; }
+.container { padding:15px; }
+input, textarea, select, button { width:100%; margin:8px 0; padding:12px; border-radius:8px; border:none; font-size:16px; }
+button { background:#4CAF50; color:#fff; }
+canvas { background:#fff; border-radius:8px; margin-top:10px; touch-action:none; }
+.log { background:#111; padding:10px; margin-top:10px; border-radius:5px; }
+img { max-width:100px; display:block; margin-top:5px; }
+</style>
+</head>
+<body>
+
+<div class="container">
+<h2>Visit Logger (Mobile)</h2>
+
+<input id="customer" placeholder="Customer / Shop Name" />
+<input id="vehicle" placeholder="Vehicle" />
+<select id="task">
+<option>Panel Repair</option>
+<option>Spray Painting</option>
+<option>Color Matching</option>
+</select>
+<textarea id="notes" placeholder="Work done..."></textarea>
+
+<button onclick="startVisit()">Start Visit</button>
+<button onclick="endVisit()">End Visit</button>
+
+<input type="file" id="photo" accept="image/*" />
+<button onclick="captureLocation()">Capture Location</button>
+
+<h3>Signature</h3>
+<canvas id="signature" width="300" height="150"></canvas>
+<button onclick="clearSignature()">Clear Signature</button>
+
+<button onclick="saveLog()">Save Log</button>
+<button onclick="exportPDF()">Export PDF</button>
+
+<div id="logs"></div>
+</div>
+
+<script>
+let logs = JSON.parse(localStorage.getItem('logs')) || [];
+let startTime = '', endTime = '', visitLocation = '', photo = '';
+
+function startVisit(){ startTime = new Date().toLocaleTimeString(); }
+function endVisit(){ endTime = new Date().toLocaleTimeString(); }
+
+function captureLocation(){
+ navigator.geolocation.getCurrentPosition(pos=>{
+  visitLocation = pos.coords.latitude+','+pos.coords.longitude;
+  alert('Location captured');
+ });
+}
+
+document.getElementById('photo').addEventListener('change', e=>{
+ const file = e.target.files[0];
+ if(!file) return;
+ const reader = new FileReader();
+ reader.onload = ()=> photo = reader.result;
+ reader.readAsDataURL(file);
+});
+
+// Signature
+const canvas = document.getElementById('signature');
+const ctx = canvas.getContext('2d');
+let drawing = false;
+
+canvas.addEventListener('touchstart', e=>{ drawing = true; ctx.beginPath(); draw(e); });
+canvas.addEventListener('touchmove', draw);
+canvas.addEventListener('touchend', ()=> drawing=false);
+
+function draw(e){
+ if(!drawing) return;
+ e.preventDefault();
+ const rect = canvas.getBoundingClientRect();
+ const touch = e.touches[0];
+ const x = touch.clientX - rect.left;
+ const y = touch.clientY - rect.top;
+ ctx.lineWidth = 2;
+ ctx.lineCap = 'round';
+ ctx.lineTo(x,y);
+ ctx.stroke();
+ ctx.beginPath();
+ ctx.moveTo(x,y);
+}
+
+function clearSignature(){ ctx.clearRect(0,0,canvas.width,canvas.height); }
+
+function saveLog(){
+ const signature = canvas.toDataURL();
+
+ const log = {
+  customer: document.getElementById('customer').value,
+  vehicle: document.getElementById('vehicle').value,
+  task: document.getElementById('task').value,
+  notes: document.getElementById('notes').value,
+  start: startTime,
+  end: endTime,
+  location: visitLocation,
+  photo,
+  signature
+ };
+ logs.push(log);
+ localStorage.setItem('logs', JSON.stringify(logs));
+ displayLogs();
+}
+
+function displayLogs(){
+ const logsDiv = document.getElementById('logs');
+ logsDiv.innerHTML='';
+ logs.forEach(l=>{
+  logsDiv.innerHTML += `
+   <div class="log">
+    <b>${l.customer}</b><br>
+    ${l.task}<br>
+    ${l.start} - ${l.end}<br>
+    ${l.location ? `📍 ${l.location}<br>` : ''}
+    ${l.photo ? `<img src="${l.photo}" />` : ''}
+    ${l.signature ? `<img src="${l.signature}" />` : ''}
+   </div>`;
+ });
+}
+
+function exportPDF(){
+ const { jsPDF } = window.jspdf;
+ const doc = new jsPDF();
+ let y=10;
+ logs.forEach((l,i)=>{
+  doc.text(`Customer: ${l.customer}`,10,y); y+=6;
+  doc.text(`Task: ${l.task}`,10,y); y+=6;
+  doc.text(`Time: ${l.start}-${l.end}`,10,y); y+=6;
+  if(l.signature){
+    doc.addImage(l.signature,'PNG',10,y,50,20);
+    y+=25;
+  }
+  y+=5;
+  if(y > 270){ doc.addPage(); y = 10; }
+ });
+ doc.save('logs.pdf');
+}
+
+// Basic runtime test
+(function testApp(){
+ console.assert(typeof startVisit === 'function', 'startVisit missing');
+ console.assert(typeof saveLog === 'function', 'saveLog missing');
+ console.assert(Array.isArray(logs), 'logs should be array');
+})();
+
+// Init
+displayLogs();
+</script>
+
+</body>
+</html>
